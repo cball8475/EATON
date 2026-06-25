@@ -26,7 +26,7 @@ Charlie Ball. Sr. EHS Engineer at Eaton's Sumter, SC facility. Started May 4, 20
 ## API Access
 
 **EATON_API:** `https://eaton-ehs-api.cball8475.workers.dev`
-**EATON_TOKEN:** `9Cls9a9wbMexRkwkvy0dpmxPfS4zLM7OFepPYCu-VDA`
+**EATON_TOKEN:** `<stored in ~/.eaton_token — rotated, not committed>`
 **Worker version:** v3.5.0
 **Account ID:** `37821191a8c1419e055c2c0a30546589`
 **D1 Database ID:** `62ce85d7-0cc1-4832-aa57-d5b09ceaa132`

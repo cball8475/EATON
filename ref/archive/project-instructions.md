@@ -60,7 +60,7 @@ Refreshes the FSC change tracker artifact. Only triggers on exact `/fsctodo` com
 ### Worker API
 - **URL:** https://eaton-ehs-api.cball8475.workers.dev
 - **Version:** v3.0.0+
-- **Auth:** Bearer token `9Cls9a9wbMexRkwkvy0dpmxPfS4zLM7OFepPYCu-VDA`
+- **Auth:** Bearer token `<stored in ~/.eaton_token — rotated, not committed>`
 - Secrets set: `API_TOKEN`, `ANTHROPIC_API_KEY`
 
 ### D1 Database

@@ -499,8 +499,19 @@
 <script>
 // ── Config ──
 const API = "https://eaton-ehs-api.cball8475.workers.dev";
-const TOKEN = "9Cls9a9wbMexRkwkvy0dpmxPfS4zLM7OFepPYCu-VDA";
-const HEADERS = { "Content-Type": "application/json", "Authorization": `Bearer ${TOKEN}` };
+// The API token is NOT stored in source. It lives only in this browser's
+// localStorage, so it never appears in the repo or the served page source.
+// To set or replace it at any time, run in the browser console:  setToken("<token>")
+let TOKEN = localStorage.getItem("eaton_token") || "";
+function setToken(t) { TOKEN = (t || "").trim(); localStorage.setItem("eaton_token", TOKEN); location.reload(); }
+function ensureToken() {
+  if (!TOKEN) {
+    const t = window.prompt("Enter the Eaton EHS API token (stored only in this browser):");
+    if (t) { TOKEN = t.trim(); localStorage.setItem("eaton_token", TOKEN); }
+  }
+  return TOKEN;
+}
+function getHeaders() { return { "Content-Type": "application/json", "Authorization": `Bearer ${TOKEN}` }; }
 
 // ── State ──
 let allTasks = [];
@@ -513,10 +524,17 @@ let overdueCollapsed = false;
 let showArchivedFyi = false;
 
 // ── API helpers ──
+let _authFailed = false;
 async function api(path, method = "GET", body) {
-  const opts = { method, headers: HEADERS };
+  const opts = { method, headers: getHeaders() };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(API + path, opts);
+  if (res.status === 401 && !_authFailed) {
+    _authFailed = true;
+    localStorage.removeItem("eaton_token");
+    alert("API token was rejected (401). Click OK to re-enter it.");
+    location.reload();
+  }
   return res.json();
 }
 
@@ -539,11 +557,13 @@ function renderFocuses() {
   const priOrder = { High: 0, Medium: 1, Low: 2 };
   const today = new Date().toISOString().split("T")[0];
 
-  // Pick top 5 from: owned active tasks, prioritized by priority then due date proximity
+  // Pick top 5 from: owned active tasks, prioritized by priority then due date proximity.
+  // Exclude anything already surfaced in the Overdue tile so it isn't shown twice.
   const candidates = allTasks.filter(t =>
     t.ownership !== "fyi" &&
     (t.status === "todo" || t.status === "wip" || t.status === "projects") &&
-    !isOnboarding(t)
+    !isOnboarding(t) &&
+    !(t.due_date && t.due_date < today)
   ).sort((a, b) => {
     // WIP first, then by priority, then by due date
     if (a.status === "wip" && b.status !== "wip") return -1;
@@ -1464,6 +1484,7 @@ document.getElementById("task-modal").addEventListener("click", (e) => {
 });
 
 // ── Boot ──
+ensureToken();
 refreshAll();
 </script>
 </body>

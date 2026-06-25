@@ -1,0 +1,11 @@
+# Secrets — never commit tokens/keys
+.eaton_token
+*.secret
+.env
+.env.*
+infra/env.local.sh
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp

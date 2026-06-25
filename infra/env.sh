@@ -1,10 +1,19 @@
 #!/usr/bin/env bash
-# Eaton EHS Worker — single source of truth for token + URL.
-# Source this in skills: `source ~/projects/eaton-ehs-project/infra/env.sh`
-# On token rotation, update ONLY this file.
+# Eaton EHS Worker — URL + token loader for CLI use.
+# The token is NOT stored in this file (it used to be, and got committed to a
+# public repo + shipped in the page source — see git history; that token has
+# been rotated and is dead). Keep your live token OUT of version control.
+#
+# Put your current token in ~/.eaton_token (and chmod 600 it):
+#     echo 'YOUR_NEW_TOKEN' > ~/.eaton_token && chmod 600 ~/.eaton_token
+# Then: source this file.
 
-export EATON_TOKEN='9Cls9a9wbMexRkwkvy0dpmxPfS4zLM7OFepPYCu-VDA'
 export EATON_API='https://eaton-ehs-api.cball8475.workers.dev'
+export EATON_TOKEN="${EATON_TOKEN:-$(cat ~/.eaton_token 2>/dev/null)}"
+
+if [ -z "$EATON_TOKEN" ]; then
+  echo "⚠ EATON_TOKEN is empty. Put your token in ~/.eaton_token (chmod 600)." >&2
+fi
 
 # Usage examples:
 #   eaton /stats | jq .

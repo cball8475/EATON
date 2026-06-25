@@ -762,7 +762,9 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
       if (path === "/stats" && method === "GET") {
         const totalTasks = await db.prepare("SELECT COUNT(*) as c FROM tasks").first();
         const byStatus = await db.prepare("SELECT status, COUNT(*) as c FROM tasks GROUP BY status").all();
-        const overdue = await db.prepare("SELECT COUNT(*) as c FROM tasks WHERE due_date < date('now') AND status NOT IN ('done')").first();
+        // Match the dashboard's Overdue tile: owner-centric, excludes FYI/tracking items
+        // (NULL ownership is treated as "mine", same as the client's `t.ownership !== "fyi"`).
+        const overdue = await db.prepare("SELECT COUNT(*) as c FROM tasks WHERE due_date < date('now') AND status NOT IN ('done') AND (ownership IS NULL OR ownership != 'fyi')").first();
         const dueSoon = await db.prepare("SELECT COUNT(*) as c FROM tasks WHERE due_date BETWEEN date('now') AND date('now', '+2 days') AND status NOT IN ('done')").first();
         const automatable = await db.prepare("SELECT COUNT(*) as c FROM tasks WHERE automatable = 1").first();
         const totalPeople = await db.prepare("SELECT COUNT(*) as c FROM people").first();
