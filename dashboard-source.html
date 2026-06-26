@@ -504,14 +504,42 @@ const API = "https://eaton-ehs-api.cball8475.workers.dev";
 // To set or replace it at any time, run in the browser console:  setToken("<token>")
 let TOKEN = localStorage.getItem("eaton_token") || "";
 function setToken(t) { TOKEN = (t || "").trim(); localStorage.setItem("eaton_token", TOKEN); location.reload(); }
-function ensureToken() {
-  if (!TOKEN) {
-    const t = window.prompt("Enter the Eaton EHS API token (stored only in this browser):");
-    if (t) { TOKEN = t.trim(); localStorage.setItem("eaton_token", TOKEN); }
-  }
-  return TOKEN;
-}
 function getHeaders() { return { "Content-Type": "application/json", "Authorization": `Bearer ${TOKEN}` }; }
+
+// ── Token gate — inline UI (no blocking dialogs, never reload-loops) ──
+function showTokenGate(msg) {
+  let el = document.getElementById("token-gate");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "token-gate";
+    el.style.cssText = "position:fixed;inset:0;background:#0b0e14;display:flex;align-items:center;justify-content:center;z-index:99999;font-family:system-ui,sans-serif;";
+    el.innerHTML =
+      '<div style="max-width:380px;width:90%;text-align:center;color:#e6e6e6;">' +
+        '<div style="font-size:16px;font-weight:600;margin-bottom:8px;">EHS CMD — API token</div>' +
+        '<p id="token-gate-msg" style="font-size:13px;color:#9aa4b2;margin-bottom:14px;"></p>' +
+        '<input id="token-gate-input" type="password" placeholder="Paste API token" ' +
+          'style="width:100%;padding:10px;border-radius:6px;border:1px solid #2a3140;background:#11151c;color:#fff;margin-bottom:10px;box-sizing:border-box;" />' +
+        '<button id="token-gate-btn" style="width:100%;padding:10px;border-radius:6px;border:0;background:#1f6feb;color:#fff;font-weight:600;cursor:pointer;">Save &amp; load</button>' +
+      '</div>';
+    document.body.appendChild(el);
+    const save = () => {
+      const v = document.getElementById("token-gate-input").value.trim();
+      if (!v) return;
+      TOKEN = v; localStorage.setItem("eaton_token", v);
+      _authFailed = false; el.remove(); boot();
+    };
+    document.getElementById("token-gate-btn").onclick = save;
+    document.getElementById("token-gate-input").addEventListener("keydown", e => { if (e.key === "Enter") save(); });
+  }
+  el.style.display = "flex";
+  document.getElementById("token-gate-msg").textContent = msg || "Enter your token to load the dashboard. It is stored only in this browser.";
+  document.getElementById("token-gate-input").focus();
+}
+
+async function boot() {
+  if (!TOKEN) { showTokenGate(); return; }
+  await refreshAll();
+}
 
 // ── State ──
 let allTasks = [];
@@ -529,11 +557,13 @@ async function api(path, method = "GET", body) {
   const opts = { method, headers: getHeaders() };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(API + path, opts);
-  if (res.status === 401 && !_authFailed) {
-    _authFailed = true;
-    localStorage.removeItem("eaton_token");
-    alert("API token was rejected (401). Click OK to re-enter it.");
-    location.reload();
+  if (res.status === 401) {
+    if (!_authFailed) {
+      _authFailed = true;
+      localStorage.removeItem("eaton_token"); TOKEN = "";
+      showTokenGate("That token was rejected (401). Paste a valid token.");
+    }
+    return {};
   }
   return res.json();
 }
@@ -788,9 +818,9 @@ function renderStats(s) {
     <div class="stat-card"><div class="stat-label">To Do</div><div class="stat-value" style="color:var(--amber)">${statusMap.todo||0}</div></div>
     <div class="stat-card"><div class="stat-label">In Progress</div><div class="stat-value" style="color:var(--blue)">${statusMap.wip||0}</div></div>
     <div class="stat-card"><div class="stat-label">Blocked</div><div class="stat-value" style="color:var(--orange)">${s.blocked||0}</div><div class="stat-sub">waiting on someone</div></div>
-    <div class="stat-card"><div class="stat-label">Overdue</div><div class="stat-value" style="color:var(--red)">${s.overdue}</div></div>
+    <div class="stat-card"><div class="stat-label">Overdue</div><div class="stat-value" style="color:var(--red)">${s.overdue||0}</div></div>
     <div class="stat-card"><div class="stat-label">Done</div><div class="stat-value" style="color:var(--teal)">${statusMap.done||0}</div></div>
-    <div class="stat-card"><div class="stat-label">People</div><div class="stat-value">${s.total_people}</div></div>
+    <div class="stat-card"><div class="stat-label">People</div><div class="stat-value">${s.total_people||0}</div></div>
   `;
 }
 
@@ -1484,8 +1514,7 @@ document.getElementById("task-modal").addEventListener("click", (e) => {
 });
 
 // ── Boot ──
-ensureToken();
-refreshAll();
+boot();
 </script>
 </body>
 </html>
