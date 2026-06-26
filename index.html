@@ -812,13 +812,19 @@ function renderStats(s) {
   (s.by_status || []).forEach(r => statusMap[r.status] = r.c);
   const ownershipMap = {};
   (s.by_ownership || []).forEach(r => ownershipMap[r.ownership] = r.c);
+  // Compute Overdue on the client from the same rule as the Overdue panel
+  // (renderOverdue), so the KPI and the panel always agree — no Worker change needed.
+  const _today = new Date().toISOString().split("T")[0];
+  const overdueCount = allTasks.filter(t =>
+    t.due_date && t.due_date < _today && t.status !== "done" && t.ownership !== "fyi"
+  ).length;
   row.innerHTML = `
     <div class="stat-card"><div class="stat-label">My Tasks</div><div class="stat-value" style="color:var(--teal)">${ownershipMap.mine||0}</div><div class="stat-sub">active, owned by me</div></div>
     <div class="stat-card"><div class="stat-label">FYI / Tracking</div><div class="stat-value" style="color:var(--text3)">${ownershipMap.fyi||0}</div><div class="stat-sub">watching, not mine</div></div>
     <div class="stat-card"><div class="stat-label">To Do</div><div class="stat-value" style="color:var(--amber)">${statusMap.todo||0}</div></div>
     <div class="stat-card"><div class="stat-label">In Progress</div><div class="stat-value" style="color:var(--blue)">${statusMap.wip||0}</div></div>
     <div class="stat-card"><div class="stat-label">Blocked</div><div class="stat-value" style="color:var(--orange)">${s.blocked||0}</div><div class="stat-sub">waiting on someone</div></div>
-    <div class="stat-card"><div class="stat-label">Overdue</div><div class="stat-value" style="color:var(--red)">${s.overdue||0}</div></div>
+    <div class="stat-card"><div class="stat-label">Overdue</div><div class="stat-value" style="color:var(--red)">${overdueCount}</div></div>
     <div class="stat-card"><div class="stat-label">Done</div><div class="stat-value" style="color:var(--teal)">${statusMap.done||0}</div></div>
     <div class="stat-card"><div class="stat-label">People</div><div class="stat-value">${s.total_people||0}</div></div>
   `;
