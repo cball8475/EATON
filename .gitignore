@@ -1,0 +1,3 @@
+# Secrets — never commit. Real token lives only in the local copy of this file
+# and in the Claude.ai Project Instructions field (not in git).
+infra/env.sh

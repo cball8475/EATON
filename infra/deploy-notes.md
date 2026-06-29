@@ -30,9 +30,17 @@
 ```bash
 cd infra
 export XDG_CONFIG_HOME="$HOME/.wrangler-config"
-npx wrangler deploy
+GIT_SHA=$(git rev-parse --short HEAD) npx wrangler deploy --var GIT_SHA:"$GIT_SHA"
 ```
-Reads `infra/wrangler.toml` (D1 binding + cron). Secrets stay intact. Verify with `curl https://eaton-ehs-api.cball8475.workers.dev/health` — version should match the header in `worker-api.mjs`.
+Reads `infra/wrangler.toml` (D1 binding + cron). Secrets stay intact.
+
+**Stamp the commit (v3.7.0+):** pass `GIT_SHA` as a var on every deploy (shown above) so `/health` reports the live commit. That's how you check live-vs-repo drift: `curl .../health` returns `{ version, git_sha, ... }` — if `git_sha` doesn't match `git rev-parse --short HEAD` in the repo, the deploy is behind. Don't hardcode the version anywhere else; `/health` is the only truth.
+
+### WAF / firewall (required for the chat surface)
+The Claude chat surface fetches the API with a browser-style user-agent, not curl. If a Cloudflare WAF or firewall rule filters by user-agent, those calls 403 and the morning brief silently half-renders (see D1 knowledge #454, auth-verification lesson). Keep a skip/allow rule on the API path:
+- Scope: `http.host eq "eaton-ehs-api.cball8475.workers.dev"` (or the route path)
+- Action: skip remaining WAF rules / managed rules for that path
+- Auth is already enforced by the Bearer check in the Worker — the WAF UA filtering adds no security here, only breakage.
 
 ### Deploy pattern (fallback: curl PUT to Cloudflare API)
 Uses multipart form data:

@@ -498,8 +498,14 @@
 
 <script>
 // ── Config ──
+// SECURITY: this dashboard is deployed to a PUBLIC Netlify URL. Any token hardcoded
+// here is readable by anyone via View Source — it grants full read/write to D1.
+// Do not paste the live token back. Fix the auth model first (see infra/deploy-notes.md):
+// put the dashboard behind Cloudflare Access / Netlify password, OR add a read-only
+// scoped token, OR have the Worker serve a public read-only data route. Until then this
+// is a placeholder and the dashboard will not load live data.
 const API = "https://eaton-ehs-api.cball8475.workers.dev";
-const TOKEN = "9Cls9a9wbMexRkwkvy0dpmxPfS4zLM7OFepPYCu-VDA";
+const TOKEN = "REPLACE_AFTER_AUTH_MODEL_FIX";
 const HEADERS = { "Content-Type": "application/json", "Authorization": `Bearer ${TOKEN}` };
 
 // ── State ──

@@ -26,10 +26,11 @@ Charlie Ball. Sr. EHS Engineer at Eaton's Sumter, SC facility. Started May 4, 20
 ## API Access
 
 **EATON_API:** `https://eaton-ehs-api.cball8475.workers.dev`
-**EATON_TOKEN:** `9Cls9a9wbMexRkwkvy0dpmxPfS4zLM7OFepPYCu-VDA`
-**Worker version:** v3.5.0
+**EATON_TOKEN:** paste the live token directly here in the Claude.ai Project Instructions field. **Never commit the real value to the repo** — the synced copy in git must stay a placeholder.
 **Account ID:** `37821191a8c1419e055c2c0a30546589`
 **D1 Database ID:** `62ce85d7-0cc1-4832-aa57-d5b09ceaa132`
+
+Worker version is not tracked here — `GET /health` returns the live `version` + `git_sha`. That's the only source of truth; don't hardcode it.
 
 **To call the API from a skill or directly:**
 Make an HTTP request to `EATON_API/<path>` with header `Authorization: Bearer EATON_TOKEN`.
@@ -39,20 +40,24 @@ When the token rotates, update it here in Project Instructions — that's the on
 ## API Endpoints
 
 ```
+GET      /brief           — composite: everything /morning needs in ONE call (stats + open/overdue/blocked/due-today tasks + completed-since-yesterday + scoreboard w/ staleness + recent intel + people names). Prefer this over 6 separate calls.
+GET      /pulse           — composite: everything /status needs in one call (stats + top overdue + blockers)
 GET/POST /tasks           — task CRUD (?ownership=, ?target_period=, ?waiting_on=any, ?knowledge_type=, ?status=, ?since=, ?completed_since=, ?fields=, ?limit=)
 GET/POST /people          — people directory (?department=, ?since=, ?fields=, ?limit=)
 PATCH    /people/:id      — update person
 GET      /people/:id/intel — person-specific intel
-GET/POST /intel           — people intel (?person_name=, ?intel_type=, ?since=, ?fields=, ?limit=)
+GET/POST /intel           — people intel (?person_name=, ?intel_type=, ?since=, ?fields=, ?limit=). POST resolves person_name→person_id; response carries needs_link=true when the name matched 0 or 2+ people.
 GET/POST /knowledge       — tribal knowledge (?category=, ?area=, ?q=, ?since=, ?fields=, ?limit=)
 GET      /stats           — dashboard stats (always cheap — use for counts)
 GET      /export          — full JSON dump (heavy — only /audit uses)
-GET      /health          — returns version string
+GET      /health          — returns {version, git_sha, ts} — the only source of truth for deployed version
 GET      /moves           — leadership moves (?since=YYYY-MM-DD, ?category=)
-GET/PATCH /scoreboard     — EHS safety pulse metrics (TRIR, recordables, observations, man-hours) — single row, updated weekly
+GET/PATCH /scoreboard     — EHS safety pulse metrics (TRIR, recordables, observations, man-hours) — single row. GET adds age_days + stale (>7d).
 GET      /digest/preview  — formatted weekly digest
 POST     /otter/extract   — AI transcript extraction (uses ANTHROPIC_API_KEY)
 ```
+
+**Enum validation (v3.7.0+):** POST/PATCH `/tasks` reject invalid `status`/`priority`/`ownership`/`target_period` with a 400 listing allowed values. Valid status: `todo`, `wip`, `done`, `projects`, `undated` (there is no `investigation`).
 
 **Filter param conventions (v3.3.0+, completed_since added in v3.4.0):**
 - `?since=YYYY-MM-DD` — filter by `created_at >= date` (or `date >=` for moves)
