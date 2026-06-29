@@ -1,40 +1,26 @@
-# Tonight's deploy checklist — from the 2026-06-29 chat session
+# Eaton setup hardening — 2026-06-29
 
-You're on Claude Code at the desktop. These are the items that needed a machine/credentials
-the chat surface couldn't reach. Branch: `claude/eaton-setup-improvements-wvi10n`.
+Status of the work from the chat + desktop session.
 
-## Already done (verified — no action)
-- ✅ **Token rotated.** The live secret is the Secrets Store value bound as `AUTH_TOKEN`
-  (Secrets Store secret `EATON_TOKEN`). Old token now returns 401, rotated token returns 200.
-- ✅ **`#389` fixed.** "Build storeroom spool WSRA" status `investigation` → `wip`, applied
-  directly to D1. Whole tasks table scanned — no other invalid enum values.
+## Done & verified
+- ✅ **Token rotated.** Live secret is the Secrets Store value bound as `AUTH_TOKEN`
+  (`EATON_TOKEN`, store `80c48360a0e54dd69425da2dfbde21ad`). Old token → 401, new → 200.
+- ✅ **`#389` fixed** (`investigation` → `wip`), and the v3.7.0 enum guard now rejects
+  invalid status/priority/ownership/target_period with a 400.
+- ✅ **Worker v3.7.0 deployed.** `/brief` + `/pulse` composite endpoints, `/intel`
+  person_id resolution, scoreboard age/stale, `/health` git_sha. Verified live.
+- ✅ **Dashboard moved to Cloudflare Pages + Access.** `https://eaton-ehs-cmd.pages.dev`,
+  gated by the `eaton cmd` policy (email allow-list). No token in the served HTML —
+  it prompts once and stores in the browser. Verified: unauthenticated request → 302 to
+  Access login.
 
-## To do tonight
-1. **Deploy Worker v3.7.0**
-   ```bash
-   cd infra
-   export XDG_CONFIG_HOME="$HOME/.wrangler-config"
-   GIT_SHA=$(git rev-parse --short HEAD)        # own line — inline form passes empty
-   npx wrangler deploy --var GIT_SHA:"$GIT_SHA"
-   curl -s https://eaton-ehs-api.cball8475.workers.dev/health   # expect version 3.7.0 + git_sha
-   ```
-   ⚠ Before/after: confirm the **`AUTH_TOKEN` Secrets Store binding survives the deploy**
-   (worker → Bindings tab). If wrangler drops it, auth falls back to the `API_TOKEN` secret —
-   which you also set to the rotated value, so it still works, but fill in `store_id` +
-   `secret_name` in `infra/wrangler.toml` to keep the binding explicit.
+## Remaining
+- [ ] **Re-upload `chat-sync/` to the Claude.ai project** — `project-instructions.md`,
+  `skill-morning.md`, `skill-status.md` (rotated token note + `/brief`/`/pulse`). Web UI only.
+- [ ] **Decommission the old Netlify site** `eaton-ehs-cmd.netlify.app` (optional — harmless
+  now, no token, but stale).
 
-2. **Update local `infra/env.sh`** → set `EATON_TOKEN` to the rotated token (the value you
-   saved in Cloudflare / Project Instructions today). The file is gitignored; don't commit it.
-
-3. **Stand up the dashboard on Cloudflare Pages + Access** — steps in `infra/deploy-notes.md`.
-   The dashboard no longer hardcodes a token (it prompts once and stores in localStorage), so
-   there's nothing secret to paste. Then decommission the public Netlify site.
-
-4. **Re-upload `chat-sync/` to the Claude.ai project** — `project-instructions.md`,
-   `skill-morning.md`, `skill-status.md` (now on `/brief` + `/pulse`). Drag-and-drop in the web UI.
-
-## Verify after deploy
-- `/status` and `/morning` in chat should use the single `/brief` / `/pulse` calls (no 404 fallback).
-- Old token stays dead: `curl -H "Authorization: Bearer <old>" .../stats` → 401.
-
-Delete this file once it's all done.
+## Optional / nice-to-have
+- [ ] `infra/env.sh` → set `EATON_TOKEN` to the rotated value (only if you run skills via CLI).
+- [ ] Redeploy to populate `git_sha` (cosmetic — drift check). Two-line form:
+  `GIT_SHA=$(git rev-parse --short HEAD)` then `npx wrangler deploy --var GIT_SHA:"$GIT_SHA"`.
