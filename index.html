@@ -498,14 +498,17 @@
 
 <script>
 // ── Config ──
-// SECURITY: this dashboard is deployed to a PUBLIC Netlify URL. Any token hardcoded
-// here is readable by anyone via View Source — it grants full read/write to D1.
-// Do not paste the live token back. Fix the auth model first (see infra/deploy-notes.md):
-// put the dashboard behind Cloudflare Access / Netlify password, OR add a read-only
-// scoped token, OR have the Worker serve a public read-only data route. Until then this
-// is a placeholder and the dashboard will not load live data.
+// Auth model: this dashboard is served behind Cloudflare Access (login required).
+// The API token is NEVER hardcoded here. On first load the page prompts for it and
+// stores it in this browser's localStorage. After a token rotation, run
+//   localStorage.removeItem('eaton_token')
+// in the browser console and reload to re-enter the new one.
 const API = "https://eaton-ehs-api.cball8475.workers.dev";
-const TOKEN = "REPLACE_AFTER_AUTH_MODEL_FIX";
+let TOKEN = localStorage.getItem("eaton_token") || "";
+if (!TOKEN) {
+  TOKEN = (prompt("Enter the Eaton API token (stored locally in this browser only):") || "").trim();
+  if (TOKEN) localStorage.setItem("eaton_token", TOKEN);
+}
 const HEADERS = { "Content-Type": "application/json", "Authorization": `Bearer ${TOKEN}` };
 
 // ── State ──

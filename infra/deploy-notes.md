@@ -16,6 +16,33 @@
 - Prior deploys using `--no-wait` appeared to succeed but uploaded the wrong filename — always verify with grep before deploying
 - Single-file HTML, no build step
 
+> **Note (2026-06-29):** the Netlify deploy was **public** and shipped the API token in client JS — a full read/write leak. The dashboard is moving to Cloudflare Pages behind Access (below). Once that's live, decommission this Netlify site (or leave it — it no longer carries a token, so it just won't load data).
+
+---
+
+## Dashboard auth — Cloudflare Pages + Access (replaces public Netlify)
+
+The dashboard no longer hardcodes a token. It prompts once in the browser and stores the value in `localStorage` (see the config block in `index.html`). It's served behind Cloudflare Access so only you can reach it; the in-browser token is therefore only ever exposed to an authenticated session.
+
+### One-time setup
+1. **Deploy to Pages** (single static file, no build):
+   ```bash
+   mkdir -p /tmp/eaton-dash && cp index.html /tmp/eaton-dash/index.html
+   npx wrangler pages deploy /tmp/eaton-dash --project-name eaton-ehs-dashboard
+   ```
+   Note the `*.pages.dev` URL it prints.
+2. **Put Access in front** — Cloudflare dashboard → **Zero Trust** → **Access** → **Applications** → **Add an application** → **Self-hosted**:
+   - Application domain: the `eaton-ehs-dashboard.pages.dev` hostname
+   - Policy: **Allow**, include **Emails** = `charlieball@eaton.com` (+ any others)
+   - Session duration: your preference (e.g. 24h)
+3. **First visit:** Cloudflare emails a one-time PIN → log in → dashboard loads → enter the (rotated) token at the prompt. Stored locally from then on.
+
+### After a token rotation
+In the dashboard browser console: `localStorage.removeItem('eaton_token')` then reload, and enter the new token.
+
+### Cost
+Cloudflare Pages: free. Cloudflare Access: free up to 50 users. (Netlify password protection would have required a Pro plan — this avoids that.)
+
 ---
 
 ## Cloudflare Worker API
