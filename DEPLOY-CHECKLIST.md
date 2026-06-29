@@ -14,7 +14,8 @@ the chat surface couldn't reach. Branch: `claude/eaton-setup-improvements-wvi10n
    ```bash
    cd infra
    export XDG_CONFIG_HOME="$HOME/.wrangler-config"
-   GIT_SHA=$(git rev-parse --short HEAD) npx wrangler deploy --var GIT_SHA:"$GIT_SHA"
+   GIT_SHA=$(git rev-parse --short HEAD)        # own line — inline form passes empty
+   npx wrangler deploy --var GIT_SHA:"$GIT_SHA"
    curl -s https://eaton-ehs-api.cball8475.workers.dev/health   # expect version 3.7.0 + git_sha
    ```
    ⚠ Before/after: confirm the **`AUTH_TOKEN` Secrets Store binding survives the deploy**

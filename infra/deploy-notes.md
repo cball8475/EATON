@@ -57,7 +57,10 @@ Cloudflare Pages: free. Cloudflare Access: free up to 50 users. (Netlify passwor
 ```bash
 cd infra
 export XDG_CONFIG_HOME="$HOME/.wrangler-config"
-GIT_SHA=$(git rev-parse --short HEAD) npx wrangler deploy --var GIT_SHA:"$GIT_SHA"
+# Set GIT_SHA on its own line — `GIT_SHA=$(...) wrangler --var "$GIT_SHA"` expands
+# the arg BEFORE the inline assignment applies, passing an empty value.
+GIT_SHA=$(git rev-parse --short HEAD)
+npx wrangler deploy --var GIT_SHA:"$GIT_SHA"
 ```
 Reads `infra/wrangler.toml` (D1 binding + cron). Secrets stay intact.
 
