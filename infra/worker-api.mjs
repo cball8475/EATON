@@ -324,10 +324,20 @@ export default {
       return json({ status: "ok", service: "eaton-ehs-api", version: VERSION, git_sha: env.GIT_SHA || "unknown", ts: new Date().toISOString() });
     }
 
-    // Auth
+    // Auth — prefer the Secrets Store binding (AUTH_TOKEN), fall back to the
+    // per-worker API_TOKEN secret. The deployed worker has read from Secrets Store
+    // since before it was tracked here; keep this so a repo deploy doesn't silently
+    // change which secret is authoritative. Rotate the live token in the Secrets
+    // Store value bound as AUTH_TOKEN, not the API_TOKEN fallback.
     const authHeader = request.headers.get("Authorization") || "";
     const token = authHeader.replace("Bearer ", "");
-    if (token !== env.API_TOKEN) return err("Unauthorized", 401);
+    let expectedToken = env.API_TOKEN;
+    try {
+      if (env.AUTH_TOKEN && typeof env.AUTH_TOKEN.get === "function") {
+        expectedToken = await env.AUTH_TOKEN.get();
+      }
+    } catch (_) {}
+    if (token !== expectedToken) return err("Unauthorized", 401);
 
     try {
       // ── DIGEST ──
