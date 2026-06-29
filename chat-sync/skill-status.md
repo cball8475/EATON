@@ -4,9 +4,11 @@ Quick status pulse. Compact, phone-readable. No analysis, no recommendations.
 
 Use `EATON_API` + `EATON_TOKEN` from Project Instructions.
 
-- `GET /stats`
-- `GET /tasks?status=todo&ownership=mine`
-- `GET /tasks?waiting_on=any&status=todo`
+- `GET /pulse` — one call returns `stats`, `overdue_top` (3), `blockers` (5).
+
+Everything below comes out of that single response: counts from `stats`, top overdue from `overdue_top`, blockers from `blockers`. No separate `/stats` or `/tasks` calls.
+
+Fallback (only if `/pulse` 404s — Worker pre-v3.7.0): `GET /stats` + `GET /tasks?status=todo&ownership=mine` + `GET /tasks?waiting_on=any&status=todo`.
 
 ## Output
 ```
