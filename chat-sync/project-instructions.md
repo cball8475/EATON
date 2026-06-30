@@ -80,8 +80,8 @@ POST     /otter/extract   — AI transcript extraction (uses ANTHROPIC_API_KEY)
 ### Charlie's person_id: 26
 
 ### Dashboard
-- **URL:** https://eaton-ehs-cmd.netlify.app
-- **Netlify site ID:** `5667ffaa-f8bb-4208-9cba-766fd357f2b8`
+- **URL:** https://eaton-ehs-cmd.pages.dev (Cloudflare Pages, behind Cloudflare Access — login required)
+- **Hosting:** Cloudflare Pages project `eaton-ehs-cmd`. The API token is entered in-browser and stored in localStorage — never embedded in the page.
 
 ## Memory Architecture
 
