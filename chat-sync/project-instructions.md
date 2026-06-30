@@ -40,7 +40,7 @@ When the token rotates, update it here in Project Instructions — that's the on
 ## API Endpoints
 
 ```
-GET      /brief           — composite: everything /morning needs in ONE call (stats + open/overdue/blocked/due-today tasks + completed-since-yesterday + scoreboard w/ staleness + recent intel + people names). Prefer this over 6 separate calls.
+GET      /brief           — composite: everything /morning needs in ONE call (stats + open/overdue/blocked/due-today tasks + completed-since-yesterday + scoreboard w/ staleness + recent intel + people names + unprocessed transcripts). Prefer this over 6 separate calls.
 GET      /pulse           — composite: everything /status needs in one call (stats + top overdue + blockers)
 GET/POST /tasks           — task CRUD (?ownership=, ?target_period=, ?waiting_on=any, ?knowledge_type=, ?status=, ?since=, ?completed_since=, ?fields=, ?limit=)
 GET/POST /people          — people directory (?department=, ?since=, ?fields=, ?limit=)
@@ -54,6 +54,7 @@ GET      /health          — returns {version, git_sha, ts} — the only source
 GET      /moves           — leadership moves (?since=YYYY-MM-DD, ?category=)
 GET/PATCH /scoreboard     — EHS safety pulse metrics (TRIR, recordables, observations, man-hours) — single row. GET adds age_days + stale (>7d).
 GET      /digest/preview  — formatted weekly digest
+GET/POST /transcripts     — meeting transcripts in D1 (the debrief source; Otter optional). GET ?unprocessed=1 for the debrief queue; POST stores a paste {title, meeting_date, source, body}. PATCH /transcripts/:id {processed:1} marks it done.
 POST     /otter/extract   — AI transcript extraction (uses ANTHROPIC_API_KEY)
 ```
 
