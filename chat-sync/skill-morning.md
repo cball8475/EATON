@@ -30,8 +30,8 @@ Read `kb-lessons.md` (if uploaded to project). Surface any entries added since l
 ## Step 4: Detect dashboard changes
 From `completed_since_yesterday` in the `/brief` response. Parse `[COMPLETED: reason]` tags in the `notes` field. No extra call.
 
-## Step 5: Check for unprocessed transcripts
-From `unprocessed_transcripts` in the `/brief` response (transcripts in D1 with `processed=0`). List any under `📣 UNPROCESSED MEETINGS` with id + title + date, and prompt: "run `/debrief [id]`". This is deterministic — reads D1, not Otter. No separate call.
+## Step 5: Check for unprocessed meetings
+If Otter.ai MCP is connected, search for meetings since last session. Cross-reference against `source_meeting_id` in recent tasks. Flag unprocessed meetings. If Otter fails, skip silently.
 
 ## Step 6: Calendar
 Ask Charlie to paste or screenshot Outlook calendar for today. Outlook = work, Google Calendar = personal/family. Don't block the brief if skipped.

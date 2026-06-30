@@ -5,13 +5,12 @@
 // Vars: GIT_SHA (set on deploy so /health reports the live commit — see infra/deploy-notes.md)
 // Cron: "0 14 * * 5" (Friday 10am ET)
 // Changelog:
-//   v3.8.0 (2026-06-29) — /transcripts CRUD (D1-backed debrief source; Otter now optional)
 //   v3.7.0 (2026-06-29) — enum validation (400 w/ allowed values), /brief + /pulse composite
 //     endpoints, /intel person_name→person_id resolution, scoreboard age/stale, /health git SHA
 //   v3.6.0 (2026-06-03) — weekly digest moved from SendGrid to Resend
 //   v3.5.0 (2026-05-27) — added /scoreboard GET+PATCH for EHS safety pulse metrics
 
-const VERSION = "3.8.0";
+const VERSION = "3.7.0";
 
 // Server-side enum guards. The DB has no enforced CHECK constraints, so this is the
 // only thing standing between a typo and a bad row (see task #389 — status "investigation").
@@ -545,68 +544,6 @@ export default {
         return json({ deleted: true });
       }
 
-      // ── TRANSCRIPTS (D1-backed debrief source — Otter optional) ──
-      if (path === "/transcripts" && method === "GET") {
-        // ?unprocessed=1 → only unprocessed; ?fields= projects columns (omit `body` for cheap lists)
-        const unprocessed = url.searchParams.get("unprocessed");
-        const fields = url.searchParams.get("fields");
-        const limit = url.searchParams.get("limit");
-        let sql = "SELECT id, title, meeting_date, source, source_meeting_id, processed, processed_at, created_at, length(body) as body_chars FROM transcripts";
-        if (unprocessed === "1" || unprocessed === "true") sql += " WHERE processed = 0";
-        sql += " ORDER BY COALESCE(meeting_date, created_at) DESC";
-        sql += limitClause(limit);
-        const { results } = await db.prepare(sql).all();
-        return json({ transcripts: projectFields(results, fields), count: results.length });
-      }
-
-      if (matchPath(path, "/transcripts/:id") && method === "GET") {
-        const [id] = matchPath(path, "/transcripts/:id");
-        const row = await db.prepare("SELECT * FROM transcripts WHERE id = ?").bind(id).first();
-        if (!row) return err("Not found", 404);
-        return json(row);
-      }
-
-      if (path === "/transcripts" && method === "POST") {
-        const body = await request.json();
-        if (!body.body) return err("body (the transcript text) is required");
-        const result = await db.prepare(
-          `INSERT INTO transcripts (title, meeting_date, source, source_meeting_id, body)
-           VALUES (?, ?, ?, ?, ?)`
-        ).bind(
-          body.title || null,
-          body.meeting_date || new Date().toISOString().split("T")[0],
-          body.source || "paste",
-          body.source_meeting_id || null,
-          body.body
-        ).run();
-        const created = await db.prepare("SELECT * FROM transcripts WHERE id = ?").bind(result.meta.last_row_id).first();
-        return json(created, 201);
-      }
-
-      if (matchPath(path, "/transcripts/:id") && method === "PATCH") {
-        const [id] = matchPath(path, "/transcripts/:id");
-        const body = await request.json();
-        const allowed = ["title", "meeting_date", "source", "source_meeting_id", "body", "processed"];
-        const sets = [];
-        const vals = [];
-        for (const key of allowed) {
-          if (body[key] !== undefined) { sets.push(`${key} = ?`); vals.push(body[key]); }
-        }
-        // Setting processed truthy stamps processed_at unless caller overrides it.
-        if (body.processed && body.processed_at === undefined) { sets.push("processed_at = datetime('now')"); }
-        if (!sets.length) return err("No fields to update");
-        vals.push(id);
-        await db.prepare(`UPDATE transcripts SET ${sets.join(", ")} WHERE id = ?`).bind(...vals).run();
-        const updated = await db.prepare("SELECT * FROM transcripts WHERE id = ?").bind(id).first();
-        return json(updated);
-      }
-
-      if (matchPath(path, "/transcripts/:id") && method === "DELETE") {
-        const [id] = matchPath(path, "/transcripts/:id");
-        await db.prepare("DELETE FROM transcripts WHERE id = ?").bind(id).run();
-        return json({ deleted: true });
-      }
-
       // ── EXPORT ──
       if (path === "/export" && method === "GET") {
         const tasks = await db.prepare("SELECT t.*, p.name as assignee_name FROM tasks t LEFT JOIN people p ON t.assignee_id = p.id ORDER BY t.id").all();
@@ -988,9 +925,6 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
           "SELECT person_name, intel_type, created_at FROM people_intel WHERE created_at >= ? ORDER BY created_at DESC"
         ).bind(since14).all();
         const peopleNames = await db.prepare("SELECT id, name FROM people ORDER BY name").all();
-        const unprocessedTranscripts = await db.prepare(
-          "SELECT id, title, meeting_date, source, created_at FROM transcripts WHERE processed = 0 ORDER BY COALESCE(meeting_date, created_at) DESC"
-        ).all();
         return json({
           generated_at: now.toISOString(),
           today,
@@ -1002,8 +936,7 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
           completed_since_yesterday: completedSinceYesterday.results,
           scoreboard: withScoreboardAge(scoreboard),
           recent_intel: recentIntel.results,
-          people_names: peopleNames.results,
-          unprocessed_transcripts: unprocessedTranscripts.results
+          people_names: peopleNames.results
         });
       }
 

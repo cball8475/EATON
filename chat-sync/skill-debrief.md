@@ -1,27 +1,16 @@
-Post-meeting debrief. Arguments: $ARGUMENTS (optional — "Kate", "yesterday", a transcript id, or empty for the most recent unprocessed transcript).
+Post-meeting debrief. Arguments: $ARGUMENTS (optional — "Kate", "yesterday", or empty for most recent).
 
-Transcripts live in D1 (`/transcripts`), not Otter. Otter is unreliable (empty bodies, wrong names, bad timestamps — see lessons) so it's an optional source of last resort, never the default path.
+## Step 1: Get the transcript
 
-## Step 1: Get the transcript (D1-first)
+**If no arguments or just a name:** Search Otter.ai for today's meetings. If a name is provided, use it as search query. Fetch the most recent match.
 
-Use `EATON_API` + `EATON_TOKEN` from Project Instructions.
+**If "yesterday":** Search with yesterday's date range.
 
-Resolve the transcript in this order:
+**If Otter returns empty:** Say "Otter returned empty. Paste the transcript and I'll process it." Don't retry — manual paste is the established fallback.
 
-1. **Charlie pasted text in this message** → store it first, then process it:
-   `POST /transcripts` with body `{"title":"<meeting/topic>","meeting_date":"YYYY-MM-DD","source":"paste","body":"<the full paste>"}`.
-   Keep the returned `id` — that's the transcript you process and later mark processed.
+**If Charlie pastes a transcript directly:** Skip Otter. Process what's pasted.
 
-2. **No paste** → pull from D1: `GET /transcripts?unprocessed=1&fields=id,title,meeting_date,source,created_at`.
-   - If `$ARGUMENTS` is a number, fetch that one: `GET /transcripts/{id}`.
-   - If `$ARGUMENTS` is a name/date, pick the matching unprocessed transcript.
-   - Otherwise take the most recent unprocessed one.
-   - If more than one is unprocessed and it's ambiguous, list them (id, title, date) and ask which.
-   Then fetch the full text: `GET /transcripts/{id}` (the list omits the body).
-
-3. **D1 has nothing unprocessed and Charlie wants to try Otter** → one Otter search, no retry (date format `YYYY/MM/DD`; T3 is always 8:15 AM; names frequently wrong). If it returns content, store it to D1 first — `POST /transcripts` with `source:"otter"` and `source_meeting_id` — then process that row. If Otter is empty, say: "Otter returned empty. Paste the transcript and I'll store + process it." Don't loop on Otter.
-
-Whatever the source, you should now have a transcript **row id** and its body. Everything downstream links to it.
+**Otter date format:** `YYYY/MM/DD`. T3 is always 8:15 AM regardless of Otter timestamps. Names are frequently wrong — always confirm with Charlie.
 
 ## Step 2: Process — Output in this exact order
 
@@ -55,15 +44,14 @@ Show the complete debrief. Do NOT push anything to D1 yet. Wait for explicit app
 
 ## Step 4: Push to D1 (only after approval)
 
-- **Tasks:** `POST /tasks` with `title`, `assignee_id`, `source_label`, `source_meeting_id`, `ai_extracted: true`, `ownership` (mine|fyi), `status` (todo|undated). FYI items: `undated` status + `fyi-context` tag. Use the transcript id as `source_meeting_id` when there's no Otter id (e.g. `transcript:{id}`), so provenance always traces back.
+Use `EATON_API` + `EATON_TOKEN` from Project Instructions.
+
+- **Tasks:** `POST /tasks` with body including `title`, `assignee_id`, `source_label`, `source_meeting_id` (Otter ID), `ai_extracted: true`, `ownership` (mine|fyi), `status` (todo|undated). FYI items: use `undated` status and `fyi-context` tag.
 - **People:** `POST /people` — check for name variants before creating.
-- **Intel:** `POST /intel` with `{"person_name":"...","intel_type":"...","content":"...","source_label":"...","source_meeting_id":"..."}`
-- **Knowledge:** `POST /knowledge` with `{"category":"...","area":"...","subject":"...","detail":"...","people_involved":"...","source_label":"...","source_meeting_id":"..."}`
+- **Intel:** `POST /intel` with body `{"person_name":"...","intel_type":"...","content":"...","source_label":"...","source_meeting_id":"..."}`
+- **Knowledge:** `POST /knowledge` with body `{"category":"...","area":"...","subject":"...","detail":"...","people_involved":"...","source_label":"...","source_meeting_id":"..."}`
 
-Every task MUST carry `source_label` and `source_meeting_id`. No orphan tasks.
+Every task MUST include `source_label` and `source_meeting_id`. No orphan tasks.
 
-## Step 5: Mark the transcript processed
-After the push succeeds: `PATCH /transcripts/{id}` with `{"processed":1}` (stamps `processed_at`). This is what keeps it out of the `/morning` "unprocessed meetings" flag — a debrief isn't done until its transcript is marked processed.
-
-## Step 6: Confirm results
-Report: transcript id marked processed, tasks created (IDs + titles), people created/updated, intel entries (count by person), knowledge entries (count by category).
+## Step 5: Confirm push results
+Report: tasks created (IDs + titles), people created/updated, intel entries (count by person), knowledge entries (count by category).
