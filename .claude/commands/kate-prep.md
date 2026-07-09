@@ -1,7 +1,11 @@
+---
+description: Data-driven Kate 1-on-1 prep (14-day delta)
+---
+
 Kate 1-on-1 prep. Data-driven, Kate-specific. NOT the generic 1-on-1 coach artifact.
 
 ## Setup
-Compute `SINCE` = 14 days before today (format YYYY-MM-DD). Use `EATON_API` + `EATON_TOKEN` from Project Instructions.
+Compute `SINCE` = 14 days before today (format YYYY-MM-DD). Use `EATON_API` + `EATON_TOKEN` from CLAUDE.md.
 
 ## Step 1: Pull current state (since-filtered — only the delta since last 1-on-1)
 

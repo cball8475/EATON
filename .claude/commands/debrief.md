@@ -1,3 +1,8 @@
+---
+description: Post-meeting debrief from Otter transcript — review before push
+argument-hint: [Kate | yesterday | empty]
+---
+
 Post-meeting debrief. Arguments: $ARGUMENTS (optional — "Kate", "yesterday", or empty for most recent).
 
 ## Step 1: Get the transcript
@@ -44,7 +49,7 @@ Show the complete debrief. Do NOT push anything to D1 yet. Wait for explicit app
 
 ## Step 4: Push to D1 (only after approval)
 
-Use `EATON_API` + `EATON_TOKEN` from Project Instructions.
+Use `EATON_API` + `EATON_TOKEN` from CLAUDE.md.
 
 - **Tasks:** `POST /tasks` with body including `title`, `assignee_id`, `source_label`, `source_meeting_id` (Otter ID), `ai_extracted: true`, `ownership` (mine|fyi), `status` (todo|undated). FYI items: use `undated` status and `fyi-context` tag.
 - **People:** `POST /people` — check for name variants before creating.

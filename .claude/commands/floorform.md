@@ -1,3 +1,7 @@
+---
+description: Process machine method-sheet floor-form output; cross-ref WSRA
+---
+
 Machine method sheet floor form.
 
 ## If Charlie types `/floorform` with no paste:
@@ -5,7 +9,7 @@ Tell him to open the floor form on his phone browser (hosted from the project â€
 
 ## If Charlie pastes floor form output:
 1. Parse the structured text
-2. Cross-reference with the machine's existing WSRA: `GET EATON_API/knowledge?q=<machine_name>` (use `EATON_TOKEN` from Project Instructions for auth)
+2. Cross-reference with the machine's existing WSRA: `GET EATON_API/knowledge?q=<machine_name>` (use `EATON_TOKEN` from CLAUDE.md for auth)
 3. Flag any new hazards not in the current WSRA
 4. Identify tribal knowledge from employee interviews
 5. Summarize findings by priority

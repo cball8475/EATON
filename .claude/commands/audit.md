@@ -1,8 +1,12 @@
+---
+description: Heavy semantic + drift audit (every 21-30 days)
+---
+
 Full semantic audit + drift scan. Heavy data fetch — only run on demand, not weekly. Target cadence: every 21–30 days, or when something feels off.
 
 ## Step 1: Pull full bodies (only here, not in /morning or /weekly)
 
-Use `EATON_API` + `EATON_TOKEN` from Project Instructions.
+Use `EATON_API` + `EATON_TOKEN` from CLAUDE.md.
 
 - `GET /knowledge`
 - `GET /intel`
@@ -26,7 +30,7 @@ This is the only command that should ever fetch `/knowledge` and `/intel` full b
 
 **Stale knowledge** — knowledge entries older than 30 days with no newer entry on the same subject. Could be stale facts.
 
-**Cold relationships** — key people (Kate, Laura, Gloria, all shift supervisors per Project Instructions roster) with no intel entry in 21+ days.
+**Cold relationships** — key people (Kate, Laura, Gloria, all shift supervisors per CLAUDE.md roster) with no intel entry in 21+ days.
 
 **Skill drift** — scan `skill-*.md` files in the project for references to deleted files (`kb-tribal-knowledge`, `kb-people-intel`, etc.), removed endpoints, stale field names. Flag any found.
 

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(source .claude/eaton.env)",
+      "Bash(curl:*)",
+      "WebFetch(domain:eaton-ehs-api.cball8475.workers.dev)",
+      "mcp__cloudflare",
+      "mcp__otter",
+      "mcp__netlify"
+    ]
+  },
+  "enableAllProjectMcpServers": true
+}

@@ -1,3 +1,8 @@
+---
+description: Quick tribal-knowledge capture to D1
+argument-hint: [the knowledge]
+---
+
 Quick tribal knowledge capture. Charlie types `/tribal` followed by notes, voice memo text, or a description.
 
 Arguments: $ARGUMENTS (the knowledge to capture)

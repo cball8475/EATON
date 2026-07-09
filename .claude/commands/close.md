@@ -1,7 +1,11 @@
+---
+description: Per-conversation session close — D1 deltas, push, lessons, scoreboard sync
+---
+
 Session close. Run at end of each conversation. Every session gets its own close.
 
 ## Setup
-Use `EATON_API` + `EATON_TOKEN` from Project Instructions. Set `TODAY` = today's date (YYYY-MM-DD).
+Use `EATON_API` + `EATON_TOKEN` from CLAUDE.md. Set `TODAY` = today's date (YYYY-MM-DD).
 
 ## Step 1: Pull today's D1 deltas (deterministic — works even after compaction)
 

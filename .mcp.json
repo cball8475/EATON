@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "cloudflare": { "type": "http", "url": "https://bindings.mcp.cloudflare.com/mcp" },
+    "otter":      { "type": "http", "url": "https://mcp.otter.ai/mcp" },
+    "netlify":    { "type": "http", "url": "https://netlify-mcp.netlify.app/mcp" }
+  }
+}

@@ -1,7 +1,11 @@
+---
+description: Friday weekly review — deltas, WSRA, My Five, audits
+---
+
 Weekly review. Run Friday afternoon before leaving.
 
 ## Setup
-Compute `SINCE` = 7 days before today (format YYYY-MM-DD). Use `EATON_API` + `EATON_TOKEN` from Project Instructions for all calls below.
+Compute `SINCE` = 7 days before today (format YYYY-MM-DD). Use `EATON_API` + `EATON_TOKEN` from CLAUDE.md for all calls below.
 
 ## Step 1: Pull deltas (targeted, not full dumps)
 
@@ -30,7 +34,7 @@ Total payload: ~30–50KB instead of ~500KB.
 From `/moves?since=` response — categories represented, gaps (any category with zero entries in 2+ weeks per `/stats.leadership.by_category` history).
 
 ## Step 5: Relationship map check
-From `/intel?since=` projected response — distinct `person_name` values touched this week. Cross-check against key people roster in Project Instructions. Any shift supervisors, Gloria, Kate, Laura with zero entries this week?
+From `/intel?since=` projected response — distinct `person_name` values touched this week. Cross-check against key people roster in CLAUDE.md. Any shift supervisors, Gloria, Kate, Laura with zero entries this week?
 
 ## Step 6: Knowledge capture audit
 From `/knowledge?since=` projected response — counts by category. Kate transition gaps visible? Zero entries this week = debriefs aren't extracting enough.

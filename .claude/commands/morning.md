@@ -1,26 +1,30 @@
+---
+description: Morning brief — one /brief call, drift scan, lessons, unprocessed meetings
+---
+
 Run the morning brief. No pleasantries — start with the data.
 
-## Step 1: Pull D1 status
+## Step 1: One call — `GET /brief`
 
-Fetch these endpoints (use `EATON_API` + `EATON_TOKEN` from Project Instructions, header `Authorization: Bearer EATON_TOKEN`):
+Use `EATON_API` + `EATON_TOKEN` from CLAUDE.md (header `Authorization: Bearer EATON_TOKEN`).
 
-- `GET /stats`
-- `GET /tasks?status=todo&ownership=mine`
-- `GET /tasks?waiting_on=any`
-- `GET /scoreboard`
+`GET /brief` returns the whole data layer for this brief in a single response:
+- `stats` — all counts (tasks, knowledge.this_week, intel, leadership_moves)
+- `open_mine` — open tasks owned by Charlie
+- `overdue`, `due_today`, `blocked` — task lists
+- `completed_since_yesterday` — for dashboard-change detection (Step 4)
+- `scoreboard` — with `age_days` + `stale` already computed (Step 9)
+- `recent_intel` — intel headers from the last 14 days (drift scan)
+- `people_names` — id+name list (waiting_on validation)
 
-## Step 2: Pull lean context for drift scan (projected, not full bodies)
+One round trip. Do NOT make separate `/stats`, `/tasks`, `/scoreboard`, `/people`, or `/intel` calls — it's all in `/brief`.
 
-- `GET /people?fields=id,name` — names only, for waiting_on validation
-- Compute `SINCE` = 14 days before today (format YYYY-MM-DD)
-- `GET /intel?since={SINCE}&fields=person_name,intel_type,created_at` — recent intel only
+Fallback (only if `/brief` 404s — Worker pre-v3.7.0): the old multi-call path — `GET /stats`, `GET /tasks?status=todo&ownership=mine`, `GET /tasks?waiting_on=any`, `GET /scoreboard`, `GET /people?fields=id,name`, `GET /intel?since={14d ago}&fields=person_name,intel_type,created_at`, `GET /tasks?completed_since={yesterday}&fields=id,title,completed_at,priority,notes`.
 
-Counts (knowledge, intel, people, leadership_moves) come from `/stats` in Step 1 — do NOT fetch full bodies for counts.
-
-## Step 2.5: Lightweight drift scan
-- Scan open tasks from Step 1 — for each `waiting_on` value, check if name appears in the projected people list
-- From the projected intel-since-14d response, identify key people (Kate, Laura, Gloria, shift supervisors) with NO entry in the window
-- If `/stats` knowledge.this_week or intel counts feel off vs. what you remember from last session, flag it
+## Step 2: Lightweight drift scan (from the `/brief` response)
+- For each `blocked[].waiting_on`, check the name appears in `people_names`
+- From `recent_intel`, identify key people (Kate, Laura, Gloria, shift supervisors) with NO entry in the 14-day window
+- If `stats.knowledge.this_week` or intel counts feel off vs. what you remember from last session, flag it
 
 Output drift as single line: `🔍 DRIFT: [count] items — [one-liner per finding]` or omit if clean.
 
@@ -28,11 +32,7 @@ Output drift as single line: `🔍 DRIFT: [count] items — [one-liner per findi
 Read `kb-lessons.md` (if uploaded to project). Surface any entries added since last session under `⚠ RECENT LESSONS`. Skip if none.
 
 ## Step 4: Detect dashboard changes
-
-Compute `YESTERDAY` = 1 day before today.
-`GET /tasks?completed_since={YESTERDAY}&fields=id,title,completed_at,priority,notes`
-
-Parse `[COMPLETED: reason]` tags in notes field.
+From `completed_since_yesterday` in the `/brief` response. Parse `[COMPLETED: reason]` tags in the `notes` field. No extra call.
 
 ## Step 5: Check for unprocessed meetings
 If Otter.ai MCP is connected, search for meetings since last session. Cross-reference against `source_meeting_id` in recent tasks. Flag unprocessed meetings. If Otter fails, skip silently.
@@ -61,7 +61,7 @@ MORNING BRIEF — [Day, Date]
 If Monday: Benchmark actions MUST be done before noon (corporate checks at noon, 90%+ required). Flag as priority 1.
 
 ## Step 9: Safety pulse
-From `/scoreboard` (pulled in Step 1):
+From `scoreboard` in the `/brief` response:
 - TRIR (current vs 0.65 goal — flag if drifting up)
 - Recordables YTD (1 = on track, 2+ = flag)
 - Observations this month (vs ~37/month target for 445/year baseline)
@@ -69,7 +69,7 @@ From `/scoreboard` (pulled in Step 1):
 
 If May-July, flag worst injury window. Any open incident follow-ups from tasks.
 
-If `last_updated` on /scoreboard is older than 7 days, flag: "⚠ Scoreboard stale — update during next /weekly close."
+`scoreboard.stale` is already computed server-side (true when `age_days > 7`). If `stale`, flag: "⚠ Scoreboard stale ([age_days]d) — update during next /weekly close."
 
 ## Step 10: Close with one line
 "Highest-value move today: [specific action based on the data]"

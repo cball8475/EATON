@@ -1,10 +1,9 @@
-// eaton-ehs-api Worker v3.6.0
+// eaton-ehs-api Worker v3.4.0
 // Deployed to: https://eaton-ehs-api.cball8475.workers.dev
 // D1 binding: DB → 62ce85d7-0cc1-4832-aa57-d5b09ceaa132
-// Secrets: API_TOKEN, ANTHROPIC_API_KEY, RESEND_API_KEY (for weekly digest)
+// Secrets: API_TOKEN, ANTHROPIC_API_KEY, SENDGRID_API_KEY (optional)
 // Cron: "0 14 * * 5" (Friday 10am ET)
-// Last deployed from project: 2026-06-03 (v3.6.0 — weekly digest moved from SendGrid to Resend)
-// Prior: 2026-05-27 (v3.5.0 — added /scoreboard GET+PATCH for EHS safety pulse metrics)
+// Last deployed from project: 2026-05-27 (v3.4.0 — added ?completed_since to /tasks for /close + /morning Step 4)
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -172,34 +171,26 @@ function formatDigestEmail(data) {
 }
 
 async function sendDigestEmail(env, subject, body) {
-  if (!env.RESEND_API_KEY) {
-    console.error("RESEND_API_KEY not set — skipping email");
-    return { success: false, reason: "no_resend_key" };
+  if (!env.SENDGRID_API_KEY) {
+    console.error("SENDGRID_API_KEY not set — skipping email");
+    return { success: false, reason: "no_sendgrid_key" };
   }
 
-  const fromEmail = env.DIGEST_FROM || "digest@florencescservices.com";
-  const res = await fetch("https://api.resend.com/emails", {
+  const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+      "Authorization": `Bearer ${env.SENDGRID_API_KEY}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      from: `Eaton EHS Digest <${fromEmail}>`,
-      to: [env.DIGEST_TO || "cball8475@gmail.com"],
+      personalizations: [{ to: [{ email: env.DIGEST_TO || "cball8475@gmail.com" }] }],
+      from: { email: env.DIGEST_FROM || "digest@florencescservices.com", name: "Eaton EHS Digest" },
       subject: subject,
-      text: body
+      content: [{ type: "text/plain", value: body }]
     })
   });
 
-  let detail = null;
-  try { detail = await res.json(); } catch {}
-  return {
-    success: res.ok,
-    status: res.status,
-    id: detail?.id || null,
-    error: res.ok ? null : (detail?.message || detail?.name || null)
-  };
+  return { success: res.ok, status: res.status };
 }
 
 export default {
@@ -227,7 +218,7 @@ export default {
     const db = env.DB;
 
     if (path === "/health" && method === "GET") {
-      return json({ status: "ok", service: "eaton-ehs-api", version: "3.6.0", ts: new Date().toISOString() });
+      return json({ status: "ok", service: "eaton-ehs-api", version: "3.4.0", ts: new Date().toISOString() });
     }
 
     // Auth
@@ -447,7 +438,7 @@ export default {
         const intel = await db.prepare("SELECT i.*, p.name as linked_person_name FROM people_intel i LEFT JOIN people p ON i.person_id = p.id ORDER BY i.created_at DESC").all();
         return json({
           exported_at: new Date().toISOString(),
-          version: "3.6.0",
+          version: "3.2.0",
           tasks: tasks.results,
           people: people.results,
           templates: templates.results,
@@ -734,28 +725,6 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
           "SELECT * FROM people_intel WHERE person_id = ? ORDER BY created_at DESC"
         ).bind(id).all();
         return json({ intel: results, count: results.length });
-      }
-
-      // ── SCOREBOARD (single-row metrics dashboard for safety pulse) ──
-      if (path === "/scoreboard" && method === "GET") {
-        const row = await db.prepare("SELECT * FROM scoreboard WHERE id = 1").first();
-        return json(row || {});
-      }
-
-      if (path === "/scoreboard" && method === "PATCH") {
-        const body = await request.json();
-        const allowed = ["trir","recordables_ytd","lost_time_incidents_ytd","near_misses_ytd","observations_month","observations_ytd","positive_interrupters_month","man_hours_ytd","man_hours_target","forklift_incidents_ytd","forklift_incidents_target_reduction","notes","updated_by"];
-        const sets = [];
-        const vals = [];
-        for (const k of allowed) {
-          if (body[k] !== undefined) { sets.push(`${k} = ?`); vals.push(body[k]); }
-        }
-        if (!sets.length) return err("No valid fields to update. Allowed: " + allowed.join(", "));
-        sets.push("last_updated = ?");
-        vals.push(new Date().toISOString());
-        await db.prepare(`UPDATE scoreboard SET ${sets.join(", ")} WHERE id = 1`).bind(...vals).run();
-        const updated = await db.prepare("SELECT * FROM scoreboard WHERE id = 1").first();
-        return json(updated);
       }
 
       // ── STATS ──
