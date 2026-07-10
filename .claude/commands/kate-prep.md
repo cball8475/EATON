@@ -1,3 +1,7 @@
+---
+description: Data-driven prep for the Kate 1-on-1 — deltas, lead-with, context-aware questions, loop-closers.
+---
+
 Kate 1-on-1 prep. Data-driven, Kate-specific. NOT the generic 1-on-1 coach artifact.
 
 ## Setup

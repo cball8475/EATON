@@ -1,3 +1,7 @@
+---
+description: Start-of-day EHS brief — D1 status, drift scan, overdue/today/blocked, safety pulse, highest-value move. One phone screen.
+---
+
 Run the morning brief. No pleasantries — start with the data. One phone screen max.
 
 ## Setup

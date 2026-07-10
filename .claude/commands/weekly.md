@@ -1,3 +1,7 @@
+---
+description: Friday review — weekly deltas, WSRA/My-Five goal tracking, audit-cadence check, and a D1 reflection.
+---
+
 Weekly review. Run Friday afternoon before leaving.
 
 ## Setup

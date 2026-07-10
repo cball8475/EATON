@@ -1,3 +1,7 @@
+---
+description: Process phone floor-form output — cross-check the machine's WSRA, flag new hazards, propose tasks.
+---
+
 Machine method sheet floor form. Arguments: $ARGUMENTS
 
 ## Setup

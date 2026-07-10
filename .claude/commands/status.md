@@ -1,3 +1,7 @@
+---
+description: 10-second status pulse — raw task counts, WSRA, top overdue and blockers. No analysis.
+---
+
 Quick status pulse. Compact, phone-readable. No analysis, no recommendations.
 
 ## Execute

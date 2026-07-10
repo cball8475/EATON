@@ -1,3 +1,7 @@
+---
+description: Process a meeting transcript into tasks, intel, knowledge + a strategic read; push to D1 on approval.
+---
+
 Post-meeting debrief. Arguments: $ARGUMENTS (optional — "Kate", "yesterday", or empty for most recent).
 
 ## Setup

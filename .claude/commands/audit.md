@@ -1,3 +1,7 @@
+---
+description: On-demand semantic audit (~monthly) — contradictions, drift, duplicates, orphans, cold relationships.
+---
+
 Full semantic audit + drift scan. Heavy data fetch — only run on demand, not weekly. Target cadence: every 21–30 days, or when something feels off.
 
 ## Step 1: Pull full bodies (only here, not in /morning or /weekly)

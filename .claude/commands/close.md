@@ -1,3 +1,7 @@
+---
+description: End-of-session wrap — reconcile today's D1 deltas, catch unpushed items, capture lessons, push on approval.
+---
+
 Session close. Run at end of each conversation. Every session gets its own close.
 
 ## Setup
