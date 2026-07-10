@@ -1,0 +1,3 @@
+# Local, machine-specific Claude Code config (permissions, MCP wiring).
+# Keep this out of the repo; commit shared commands under .claude/commands/.
+.claude/settings.local.json
