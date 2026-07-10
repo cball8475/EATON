@@ -4,6 +4,11 @@ What failed, what wasted time, and what looked right but wasn't. Force-read at m
 
 ---
 
+## 2026-07-10 — Two Worker tokens dead/expiring; run brief off D1 direct
+**What:** `/morning` failed to auth — EATON Worker `API_TOKEN` returns 401 (Worker now v3.7.0, token in `infra/env.sh` no longer matches). Same morning, GitHub notified the `fsc-crm-api-push` fine-grained PAT (florence-crm-api `GITHUB_TOKEN` secret, id 13405149) expires in 1 day. Both are the same failure mode: credential rotated/redeployed, Worker secret never updated to match.
+**Lesson:** When the Worker token is dead, the brief data still lives in D1 — query it directly via the Cloudflare MCP `d1_database_query` (db `62ce85d7-0cc1-4832-aa57-d5b09ceaa132`), no Worker token needed. Don't burn time trying to fix auth first. Fixing the Worker itself is a Charlie task: `npx wrangler secret put <NAME>` with the env.sh / regenerated value — no Cloudflare creds exist in the remote session, and `wrangler deploy` preserves the *wrong* secret so a redeploy won't fix it.
+**Source:** Morning brief, token 401 + GitHub expiry email.
+
 ## 2026-05-16 — File size will become a problem
 **What:** log-sessions.md will hit noise threshold (~35KB) within 2 months at current pace.
 **Lesson:** Archive monthly. Keep current month only in log-sessions.md, roll to log-sessions-YYYY-MM.md.
