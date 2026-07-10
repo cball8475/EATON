@@ -4,10 +4,17 @@ What failed, what wasted time, and what looked right but wasn't. Force-read at m
 
 ---
 
-## 2026-07-10 — Two Worker tokens dead/expiring; run brief off D1 direct
-**What:** `/morning` failed to auth — EATON Worker `API_TOKEN` returns 401 (Worker now v3.7.0, token in `infra/env.sh` no longer matches). Same morning, GitHub notified the `fsc-crm-api-push` fine-grained PAT (florence-crm-api `GITHUB_TOKEN` secret, id 13405149) expires in 1 day. Both are the same failure mode: credential rotated/redeployed, Worker secret never updated to match.
-**Lesson:** When the Worker token is dead, the brief data still lives in D1 — query it directly via the Cloudflare MCP `d1_database_query` (db `62ce85d7-0cc1-4832-aa57-d5b09ceaa132`), no Worker token needed. Don't burn time trying to fix auth first. Fixing the Worker itself is a Charlie task: `npx wrangler secret put <NAME>` with the env.sh / regenerated value — no Cloudflare creds exist in the remote session, and `wrangler deploy` preserves the *wrong* secret so a redeploy won't fix it.
-**Source:** Morning brief, token 401 + GitHub expiry email.
+## 2026-07-10 — EATON auth is a Secrets Store secret, NOT the Worker API_TOKEN var
+**What:** `/morning` 401'd on every authed endpoint (Worker v3.7.0). Burned ~an hour because editing the per-Worker `API_TOKEN` secret in the dashboard did nothing — kept returning 401 even with a clean, byte-perfect token typed directly into curl (ruled out mobile paste, proxy, wrong-worker via `workers_list`).
+**Root cause:** The DEPLOYED worker code (v3.7.0) authenticates against a **Cloudflare Secrets Store** binding named `AUTH_TOKEN`, and only falls back to `env.API_TOKEN` if that binding is absent:
+```js
+let expectedToken = env.API_TOKEN;
+if (env.AUTH_TOKEN && typeof env.AUTH_TOKEN.get === "function") expectedToken = await env.AUTH_TOKEN.get();
+if (token !== expectedToken) return err("Unauthorized", 401);
+```
+The `AUTH_TOKEN` binding points to Secrets Store secret **`EATON_TOKEN`** (account-level Secrets Store → Workers). That's the only value that matters. The repo `infra/worker-api.mjs` still shows the OLD `API_TOKEN`-only check — deployed code diverged from the repo and nobody updated the file, which is what made this invisible.
+**Lesson:** To rotate the EATON token, update the **Secrets Store secret `EATON_TOKEN`** (dash → Secrets Store), not the Worker's `API_TOKEN` variable, then set the same value in `infra/env.sh`. Keep `API_TOKEN` matching too as a fallback. Diagnose deployed auth by reading the LIVE code via Cloudflare MCP `workers_get_worker_code`, not the repo file. Meanwhile, the morning brief data lives in D1 — query it directly via `d1_database_query` (db `62ce85d7-0cc1-4832-aa57-d5b09ceaa132`), no Worker token needed, so a dead token never blocks the brief. (Also this morning: GitHub `fsc-crm-api-push` PAT / florence `GITHUB_TOKEN`, id 13405149, expired — regenerated + re-set via CF dashboard.)
+**Source:** Morning brief token 401 debugging, 2026-07-10.
 
 ## 2026-05-16 — File size will become a problem
 **What:** log-sessions.md will hit noise threshold (~35KB) within 2 months at current pace.
