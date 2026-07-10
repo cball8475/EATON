@@ -4,6 +4,18 @@ What failed, what wasted time, and what looked right but wasn't. Force-read at m
 
 ---
 
+## 2026-07-10 — EATON auth is a Secrets Store secret, NOT the Worker API_TOKEN var
+**What:** `/morning` 401'd on every authed endpoint (Worker v3.7.0). Burned ~an hour because editing the per-Worker `API_TOKEN` secret in the dashboard did nothing — kept returning 401 even with a clean, byte-perfect token typed directly into curl (ruled out mobile paste, proxy, wrong-worker via `workers_list`).
+**Root cause:** The DEPLOYED worker code (v3.7.0) authenticates against a **Cloudflare Secrets Store** binding named `AUTH_TOKEN`, and only falls back to `env.API_TOKEN` if that binding is absent:
+```js
+let expectedToken = env.API_TOKEN;
+if (env.AUTH_TOKEN && typeof env.AUTH_TOKEN.get === "function") expectedToken = await env.AUTH_TOKEN.get();
+if (token !== expectedToken) return err("Unauthorized", 401);
+```
+The `AUTH_TOKEN` binding points to Secrets Store secret **`EATON_TOKEN`** (account-level Secrets Store → Workers). That's the only value that matters. The repo `infra/worker-api.mjs` still shows the OLD `API_TOKEN`-only check — deployed code diverged from the repo and nobody updated the file, which is what made this invisible.
+**Lesson:** To rotate the EATON token, update the **Secrets Store secret `EATON_TOKEN`** (dash → Secrets Store), not the Worker's `API_TOKEN` variable, then set the same value in `infra/env.sh`. Keep `API_TOKEN` matching too as a fallback. Diagnose deployed auth by reading the LIVE code via Cloudflare MCP `workers_get_worker_code`, not the repo file. Meanwhile, the morning brief data lives in D1 — query it directly via `d1_database_query` (db `62ce85d7-0cc1-4832-aa57-d5b09ceaa132`), no Worker token needed, so a dead token never blocks the brief. (Also this morning: GitHub `fsc-crm-api-push` PAT / florence `GITHUB_TOKEN`, id 13405149, expired — regenerated + re-set via CF dashboard.)
+**Source:** Morning brief token 401 debugging, 2026-07-10.
+
 ## 2026-05-16 — File size will become a problem
 **What:** log-sessions.md will hit noise threshold (~35KB) within 2 months at current pace.
 **Lesson:** Archive monthly. Keep current month only in log-sessions.md, roll to log-sessions-YYYY-MM.md.
