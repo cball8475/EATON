@@ -83,10 +83,30 @@ Use only if wrangler auth is broken. **PUT-based deploys WIPE secrets** — re-s
 - `API_TOKEN` — bearer token for auth
 - `ANTHROPIC_API_KEY` — for Otter transcript extraction
 - `RESEND_API_KEY` — for weekly digest emails (v3.6.0+; replaced SendGrid). Sends from `digest@florencescservices.com` (FSC Resend account / verified domain). Set via `npx wrangler secret put RESEND_API_KEY`.
+- `GITHUB_BACKUP_TOKEN` — v3.8.0+; PAT with `repo` scope on `cball8475/EATON`, used by the Monday backup cron to push gzipped D1 exports. Set via `npx wrangler secret put GITHUB_BACKUP_TOKEN`. Until it's set, backups log a skip — nothing breaks.
 
 ### Cron
-- `0 14 * * 5` — Friday 14:00 UTC (10:00 AM ET during EDT)
-- Builds and emails weekly digest
+- `0 14 * * 5` — Friday 14:00 UTC (10:00 AM ET during EDT) — builds and emails weekly digest
+- `0 12 * * 1` — Monday 12:00 UTC (v3.8.0+) — gzipped full D1 export pushed to `infra/backups/auto/d1-export-YYYY-MM-DD.json.gz` on GitHub main (~150-250KB/week). Manual trigger: `eaton /backup/run -X POST`. Restore: `gunzip` the newest file → same JSON as `/export`.
+
+### v3.8.0 rollout checklist (one-time)
+1. **Deploy the worker** (wrangler pattern above — sets both crons from wrangler.toml).
+2. **Run the migration:** `infra/migrations/2026-07-22-v3.8.0.sql`. D1 requires statements run **one at a time** (ALTERs especially). Either paste statement-by-statement into Cloudflare MCP `d1_database_query`, or:
+   ```bash
+   # crude splitter — fine for this file's statement-per-blank-line layout
+   npx wrangler d1 execute eaton-ehs-dashboard --remote --file infra/migrations/2026-07-22-v3.8.0.sql
+   # if the batched file errors on the ALTERs, run those three individually first, then the rest
+   ```
+3. **Set the backup secret:** `npx wrangler secret put GITHUB_BACKUP_TOKEN` (PAT, `repo` scope on cball8475/EATON).
+4. **Verify:**
+   ```bash
+   source infra/env.sh
+   eaton /health | jq .              # version 3.8.0, git_sha = repo HEAD
+   eaton "/search?q=gloria" | jq .counts    # 503 until migration runs; counts after
+   eaton "/trends?weeks=4" | jq 'keys'
+   eaton /backup/run -X POST | jq .  # success:true + path, or reason:"no_github_backup_token"
+   ```
+Deploy-before-migration is safe: /search returns a 503 hint, knowledge/scoreboard fall back to pre-3.8.0 behavior. Migration-before-deploy is also safe (v3.7.0 ignores the new tables). Just finish both.
 
 ---
 

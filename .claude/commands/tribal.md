@@ -37,7 +37,13 @@ eaton /knowledge -X POST -H 'Content-Type: application/json' -d '{
   "category":"...","area":"...","subject":"...","detail":"...","people_involved":"...","source_label":"..."
 }' | jq .
 ```
-If this creates or updates a task, flag it — don't auto-create. If the knowledge contradicts something already in D1, flag the conflict.
+If this creates or updates a task, flag it — don't auto-create.
+
+**Conflict handling (v3.8.0+):** the POST response includes `conflicts` — live entries with the same subject. If `has_conflicts` is true, show Charlie both versions and ask which stands. If the new entry replaces the old one, retire the old entry explicitly:
+```bash
+eaton /knowledge/<old_id> -X PATCH -H 'Content-Type: application/json' -d '{"superseded_by": <new_id>}' | jq .
+```
+Never leave two live entries disagreeing on the same subject — that's the exact rot /audit exists to catch, and here it's catchable at capture for free.
 
 ## Rules
 - Keep entries tight. Distill raw text — don't store the raw paste.

@@ -28,7 +28,7 @@ Charlie Ball. Sr. EHS Engineer at Eaton's Sumter, SC facility. Started May 4, 20
 ### Worker API
 - **URL:** `https://eaton-ehs-api.cball8475.workers.dev`
 - **Auth:** Bearer token — source of truth is [`infra/env.sh`](infra/env.sh) (`EATON_TOKEN`). Rotate there, nowhere else.
-- **Worker name:** `eaton-ehs-api` (v3.3.0)
+- **Worker name:** `eaton-ehs-api` — live version/commit from `/health` (`version`, `git_sha`); don't trust any hardcoded number here
 - **Account ID:** `37821191a8c1419e055c2c0a30546589`
 
 ### D1 Database
@@ -48,9 +48,15 @@ GET      /stats           — dashboard stats (always cheap — use for counts)
 GET      /export          — full JSON dump
 GET      /health          — returns version string
 GET      /moves           — leadership moves (?since=YYYY-MM-DD, ?category=)
-GET/PATCH /scoreboard     — EHS safety pulse metrics (TRIR, recordables, observations, man-hours) — single row, updated weekly
-GET      /digest/preview  — formatted weekly digest
-POST     /extract-tasks   — AI transcript extraction (uses ANTHROPIC_API_KEY)
+GET/PATCH /scoreboard     — EHS safety pulse metrics (TRIR, recordables, observations, man-hours) — single row; every PATCH snapshots into scoreboard_history
+GET/POST /reflections     — weekly reflections (?since=; PATCH/DELETE /reflections/:id)
+GET      /search          — FTS5 full-text search across knowledge + intel + tasks (?q=, ?limit=) — ranked, snippeted. USE THIS for recall, not ?q= LIKE filters
+GET      /trends          — weekly time series (?weeks=, default 12): tasks created/completed, knowledge/intel capture, moves by category, scoreboard history
+GET      /brief           — composite for /morning (stats + open/overdue/blocked + scoreboard + recent intel in one call)
+GET      /pulse           — composite for /status (stats + top overdue + blockers)
+POST     /backup/run      — manual D1 backup to GitHub (Monday 12:00 UTC cron runs the same)
+GET      /digest/preview  — formatted weekly digest (POST /digest/send to email it)
+POST     /otter/extract   — AI transcript extraction (uses ANTHROPIC_API_KEY)
 ```
 
 **Filter param conventions (v3.3.0+):**
@@ -67,6 +73,9 @@ POST     /extract-tasks   — AI transcript extraction (uses ANTHROPIC_API_KEY)
 ### Knowledge Field Values
 - **category:** equipment, process, project-history, incident, vendor, policy, tribal-knowledge, metric, org-context, decision, lesson
 - **area:** steel-fab, copper-fab, warehouse, plant-wide, corporate, environmental, switchboard, data-center, seal-shop, workflow
+- **related_ids** (v3.8.0+): comma-separated knowledge IDs this entry connects to — link decisions to their outcomes, incidents to their lessons. `GET /knowledge/:id/related` traverses both directions.
+- **superseded_by** (v3.8.0+): ID of the entry that replaced this one. Superseded entries drop out of GET /knowledge and /search by default (`?include_superseded=1` to see them). PATCH the old entry instead of deleting — the chain is the audit trail.
+- **conflicts on POST:** every knowledge POST returns `conflicts` (live same-subject entries) + `has_conflicts`. When true, surface it and resolve — supersede the loser or keep both deliberately.
 
 ### Dashboard
 - **URL:** https://eaton-ehs-cmd.netlify.app
@@ -158,6 +167,10 @@ Where data lives. When facts disagree, the authoritative source wins.
 - **ref/archive/, kb/archive/** — retired/superseded files. Do not read. Do not append. Kept for rollback only.
 
 If a number appears in CLAUDE.md (TRIR, WSRA count, etc.) it should be a *target* or *stable fact*, not a snapshot. Snapshots come from `/stats`.
+
+**Recall rule (v3.8.0+):** when Charlie asks "what do we know about X" / "have we dealt with X before" / "who told us about X", hit `GET /search?q=X` first — it's FTS across knowledge, intel, AND tasks, ranked with snippets. The per-endpoint `?q=` LIKE filters only match literal substrings; /search matches terms anywhere in any order. LIKE filters are for structured drift scans, /search is for memory.
+
+**Backup (v3.8.0+):** Monday 12:00 UTC cron pushes a gzipped full D1 export to `infra/backups/auto/` on GitHub main (needs the `GITHUB_BACKUP_TOKEN` Worker secret). Manual: `POST /backup/run`. /audit verifies the cadence. Restore: gunzip the newest file — it's the same JSON as `/export`.
 
 ## Working Rules
 

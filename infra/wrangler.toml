@@ -17,4 +17,5 @@ store_id = "80c48360a0e54dd69425da2dfbde21ad"
 secret_name = "EATON_TOKEN"
 
 [triggers]
-crons = ["0 14 * * 5"]
+# Friday 14:00 UTC — weekly digest email. Monday 12:00 UTC — D1 backup to GitHub.
+crons = ["0 14 * * 5", "0 12 * * 1"]

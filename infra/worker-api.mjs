@@ -1,16 +1,21 @@
-// eaton-ehs-api Worker v3.7.0
+// eaton-ehs-api Worker v3.8.0
 // Deployed to: https://eaton-ehs-api.cball8475.workers.dev
 // D1 binding: DB → 62ce85d7-0cc1-4832-aa57-d5b09ceaa132
-// Secrets: API_TOKEN, ANTHROPIC_API_KEY, RESEND_API_KEY (for weekly digest)
+// Secrets: API_TOKEN, ANTHROPIC_API_KEY, RESEND_API_KEY (weekly digest),
+//          GITHUB_BACKUP_TOKEN (weekly D1 backup push — PAT with repo scope)
 // Vars: GIT_SHA (set on deploy so /health reports the live commit — see infra/deploy-notes.md)
-// Cron: "0 14 * * 5" (Friday 10am ET)
+// Crons: "0 14 * * 5" (Friday 10am ET — weekly digest), "0 12 * * 1" (Monday — D1 backup to GitHub)
 // Changelog:
+//   v3.8.0 (2026-07-22) — FTS5 /search across knowledge/intel/tasks, weekly gzip D1 backup to
+//     GitHub (+ POST /backup/run), /trends time series (+ scoreboard_history snapshots),
+//     knowledge edges (related_ids/superseded_by/confidence) + write-time conflict flagging.
+//     Requires infra/migrations/2026-07-22-v3.8.0.sql; degrades gracefully until it runs.
 //   v3.7.0 (2026-06-29) — enum validation (400 w/ allowed values), /brief + /pulse composite
 //     endpoints, /intel person_name→person_id resolution, scoreboard age/stale, /health git SHA
 //   v3.6.0 (2026-06-03) — weekly digest moved from SendGrid to Resend
 //   v3.5.0 (2026-05-27) — added /scoreboard GET+PATCH for EHS safety pulse metrics
 
-const VERSION = "3.7.0";
+const VERSION = "3.8.0";
 
 // Server-side enum guards. The DB has no enforced CHECK constraints, so this is the
 // only thing standing between a typo and a bad row (see task #389 — status "investigation").
@@ -140,6 +145,114 @@ async function computeStats(db) {
       by_type: intelByType.results
     }
   };
+}
+
+// Sanitize free text into an FTS5 MATCH expression: AND of quoted terms.
+// Quoting each term neutralizes FTS5 operators (-, OR, NEAR, *) so user input
+// can't produce a syntax error or an unintended query.
+function ftsMatchExpr(q) {
+  return q.trim().split(/\s+/).filter(Boolean).slice(0, 12)
+    .map(t => `"${t.replace(/"/g, "")}"`).join(" ");
+}
+
+// True when the error means the v3.8.0 migration hasn't been applied yet.
+function isMigrationPending(e) {
+  return /no such (table|column)/i.test(e?.message || "");
+}
+
+// ── EXPORT (shared by GET /export and the weekly backup) ──
+async function buildExport(db) {
+  const tasks = await db.prepare("SELECT t.*, p.name as assignee_name FROM tasks t LEFT JOIN people p ON t.assignee_id = p.id ORDER BY t.id").all();
+  const people = await db.prepare("SELECT * FROM people ORDER BY id").all();
+  const templates = await db.prepare("SELECT * FROM templates ORDER BY id").all();
+  const moves = await db.prepare("SELECT * FROM leadership_moves ORDER BY date DESC").all();
+  const reflections = await db.prepare("SELECT * FROM weekly_reflections ORDER BY week_of DESC").all();
+  const knowledge = await db.prepare("SELECT * FROM knowledge ORDER BY created_at DESC").all();
+  const intel = await db.prepare("SELECT i.*, p.name as linked_person_name FROM people_intel i LEFT JOIN people p ON i.person_id = p.id ORDER BY i.created_at DESC").all();
+  return {
+    exported_at: new Date().toISOString(),
+    version: VERSION,
+    tasks: tasks.results,
+    people: people.results,
+    templates: templates.results,
+    leadership_moves: moves.results,
+    weekly_reflections: reflections.results,
+    knowledge: knowledge.results,
+    people_intel: intel.results,
+    summary: {
+      total_tasks: tasks.results.length,
+      mine: tasks.results.filter(t => t.ownership === "mine").length,
+      fyi: tasks.results.filter(t => t.ownership === "fyi").length,
+      by_period: {
+        "this-week": tasks.results.filter(t => t.target_period === "this-week").length,
+        "30-day": tasks.results.filter(t => t.target_period === "30-day").length,
+        "60-day": tasks.results.filter(t => t.target_period === "60-day").length,
+        "90-day": tasks.results.filter(t => t.target_period === "90-day").length,
+        "ongoing": tasks.results.filter(t => t.target_period === "ongoing").length
+      },
+      blocked: tasks.results.filter(t => t.waiting_on).length,
+      tribal_knowledge: tasks.results.filter(t => t.knowledge_type === "tribal-knowledge").length,
+      total_leadership_moves: moves.results.length,
+      total_reflections: reflections.results.length,
+      total_knowledge: knowledge.results.length,
+      total_intel: intel.results.length
+    }
+  };
+}
+
+// ── WEEKLY D1 BACKUP → GITHUB ──
+// Pushes a gzipped full export as a dated file. Dated filenames mean plain
+// creates (no sha lookup — the contents API can't GET files >1MB anyway).
+// Raw export is ~1.2MB; gzipped lands around 150-250KB per week.
+async function gzipToBase64(str) {
+  const stream = new Blob([str]).stream().pipeThrough(new CompressionStream("gzip"));
+  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  let bin = "";
+  const CHUNK = 0x8000; // chunked to keep String.fromCharCode off the arg-length cliff
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(bin);
+}
+
+async function runBackup(env, db) {
+  if (!env.GITHUB_BACKUP_TOKEN) {
+    console.error("GITHUB_BACKUP_TOKEN not set — skipping backup");
+    return { success: false, reason: "no_github_backup_token" };
+  }
+  const repo = env.BACKUP_REPO || "cball8475/EATON";
+  const branch = env.BACKUP_BRANCH || "main";
+  const today = new Date().toISOString().split("T")[0];
+  const path = `infra/backups/auto/d1-export-${today}.json.gz`;
+  const data = await buildExport(db);
+  const content = await gzipToBase64(JSON.stringify(data));
+  const res = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`, {
+    method: "PUT",
+    headers: {
+      "Authorization": `Bearer ${env.GITHUB_BACKUP_TOKEN}`,
+      "Accept": "application/vnd.github+json",
+      "User-Agent": "eaton-ehs-api-backup",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      message: `D1 backup ${today} (${data.summary.total_tasks} tasks, ${data.summary.total_knowledge} knowledge, ${data.summary.total_intel} intel)`,
+      content,
+      branch
+    })
+  });
+  let detail = null;
+  try { detail = await res.json(); } catch {}
+  const result = {
+    success: res.ok || res.status === 422, // 422 = file already exists for today — treated as done
+    status: res.status,
+    path,
+    repo,
+    branch,
+    rows: data.summary,
+    error: res.ok ? null : (detail?.message || null)
+  };
+  console.log("Backup result:", JSON.stringify({ ...result, rows: undefined }));
+  return result;
 }
 
 // ── WEEKLY DIGEST ──
@@ -298,8 +411,17 @@ async function sendDigestEmail(env, subject, body) {
 
 export default {
   // ── CRON HANDLER ──
+  // "0 14 * * 5" → Friday weekly digest email. "0 12 * * 1" → Monday D1 backup.
   async scheduled(controller, env, ctx) {
     const db = env.DB;
+    if (controller.cron === "0 12 * * 1") {
+      try {
+        ctx.waitUntil(runBackup(env, db));
+      } catch (e) {
+        console.error("Backup cron error:", e);
+      }
+      return;
+    }
     try {
       const data = await buildWeeklyDigest(db);
       const body = formatDigestEmail(data);
@@ -546,41 +668,101 @@ export default {
 
       // ── EXPORT ──
       if (path === "/export" && method === "GET") {
-        const tasks = await db.prepare("SELECT t.*, p.name as assignee_name FROM tasks t LEFT JOIN people p ON t.assignee_id = p.id ORDER BY t.id").all();
-        const people = await db.prepare("SELECT * FROM people ORDER BY id").all();
-        const templates = await db.prepare("SELECT * FROM templates ORDER BY id").all();
-        const moves = await db.prepare("SELECT * FROM leadership_moves ORDER BY date DESC").all();
-        const reflections = await db.prepare("SELECT * FROM weekly_reflections ORDER BY week_of DESC").all();
-        const knowledge = await db.prepare("SELECT * FROM knowledge ORDER BY created_at DESC").all();
-        const intel = await db.prepare("SELECT i.*, p.name as linked_person_name FROM people_intel i LEFT JOIN people p ON i.person_id = p.id ORDER BY i.created_at DESC").all();
+        return json(await buildExport(db));
+      }
+
+      // ── BACKUP (manual trigger — the Monday cron runs the same routine) ──
+      if (path === "/backup/run" && method === "POST") {
+        const result = await runBackup(env, db);
+        return json(result, result.success ? 200 : 500);
+      }
+
+      // ── SEARCH (FTS5 across knowledge, intel, tasks — ranked, snippeted) ──
+      if (path === "/search" && method === "GET") {
+        const q = url.searchParams.get("q");
+        if (!q || !q.trim()) return err("q is required");
+        const match = ftsMatchExpr(q);
+        const n = Math.min(Math.max(parseInt(url.searchParams.get("limit"), 10) || 8, 1), 25);
+        try {
+          const knowledge = await db.prepare(
+            `SELECT k.id, k.category, k.area, k.subject, k.created_at, k.superseded_by,
+                    snippet(knowledge_fts, 1, '>>', '<<', ' … ', 16) as snippet,
+                    bm25(knowledge_fts) as rank
+             FROM knowledge_fts JOIN knowledge k ON k.id = knowledge_fts.rowid
+             WHERE knowledge_fts MATCH ? AND k.superseded_by IS NULL
+             ORDER BY rank LIMIT ?`
+          ).bind(match, n).all();
+          const intel = await db.prepare(
+            `SELECT i.id, i.person_name, i.intel_type, i.created_at,
+                    snippet(intel_fts, 1, '>>', '<<', ' … ', 16) as snippet,
+                    bm25(intel_fts) as rank
+             FROM intel_fts JOIN people_intel i ON i.id = intel_fts.rowid
+             WHERE intel_fts MATCH ?
+             ORDER BY rank LIMIT ?`
+          ).bind(match, n).all();
+          const tasks = await db.prepare(
+            `SELECT t.id, t.title, t.status, t.priority, t.due_date, t.created_at,
+                    snippet(tasks_fts, 1, '>>', '<<', ' … ', 16) as snippet,
+                    bm25(tasks_fts) as rank
+             FROM tasks_fts JOIN tasks t ON t.id = tasks_fts.rowid
+             WHERE tasks_fts MATCH ?
+             ORDER BY rank LIMIT ?`
+          ).bind(match, n).all();
+          return json({
+            query: q,
+            knowledge: knowledge.results,
+            intel: intel.results,
+            tasks: tasks.results,
+            counts: { knowledge: knowledge.results.length, intel: intel.results.length, tasks: tasks.results.length }
+          });
+        } catch (e) {
+          if (isMigrationPending(e)) return err("FTS index not built — run infra/migrations/2026-07-22-v3.8.0.sql", 503);
+          throw e;
+        }
+      }
+
+      // ── TRENDS (weekly time series — the trajectory view /weekly and Laura care about) ──
+      if (path === "/trends" && method === "GET") {
+        const weeks = Math.min(Math.max(parseInt(url.searchParams.get("weeks"), 10) || 12, 1), 52);
+        const sinceExpr = `-${weeks * 7} days`;
+        // %Y-%W groups by year-week; good enough for trend lines, no week-boundary math.
+        const tasksCreated = await db.prepare(
+          "SELECT strftime('%Y-%W', created_at) as week, COUNT(*) as c FROM tasks WHERE created_at >= date('now', ?) GROUP BY week ORDER BY week"
+        ).bind(sinceExpr).all();
+        const tasksCompleted = await db.prepare(
+          "SELECT strftime('%Y-%W', completed_at) as week, COUNT(*) as c FROM tasks WHERE completed_at >= date('now', ?) AND status = 'done' GROUP BY week ORDER BY week"
+        ).bind(sinceExpr).all();
+        const knowledgeAdded = await db.prepare(
+          "SELECT strftime('%Y-%W', created_at) as week, COUNT(*) as c FROM knowledge WHERE created_at >= date('now', ?) GROUP BY week ORDER BY week"
+        ).bind(sinceExpr).all();
+        const intelAdded = await db.prepare(
+          "SELECT strftime('%Y-%W', created_at) as week, COUNT(*) as c FROM people_intel WHERE created_at >= date('now', ?) GROUP BY week ORDER BY week"
+        ).bind(sinceExpr).all();
+        const movesByWeek = await db.prepare(
+          "SELECT strftime('%Y-%W', date) as week, category, COUNT(*) as c FROM leadership_moves WHERE date >= date('now', ?) GROUP BY week, category ORDER BY week"
+        ).bind(sinceExpr).all();
+        const reflectionWeeks = await db.prepare(
+          "SELECT week_of FROM weekly_reflections WHERE week_of >= date('now', ?) ORDER BY week_of"
+        ).bind(sinceExpr).all();
+        let scoreboardHistory = [];
+        try {
+          const sh = await db.prepare(
+            "SELECT * FROM scoreboard_history WHERE snapshot_date >= date('now', ?) ORDER BY snapshot_date"
+          ).bind(sinceExpr).all();
+          scoreboardHistory = sh.results;
+        } catch (e) {
+          if (!isMigrationPending(e)) throw e; // pre-migration: series just comes back empty
+        }
         return json({
-          exported_at: new Date().toISOString(),
-          version: VERSION,
-          tasks: tasks.results,
-          people: people.results,
-          templates: templates.results,
-          leadership_moves: moves.results,
-          weekly_reflections: reflections.results,
-          knowledge: knowledge.results,
-          people_intel: intel.results,
-          summary: {
-            total_tasks: tasks.results.length,
-            mine: tasks.results.filter(t => t.ownership === "mine").length,
-            fyi: tasks.results.filter(t => t.ownership === "fyi").length,
-            by_period: {
-              "this-week": tasks.results.filter(t => t.target_period === "this-week").length,
-              "30-day": tasks.results.filter(t => t.target_period === "30-day").length,
-              "60-day": tasks.results.filter(t => t.target_period === "60-day").length,
-              "90-day": tasks.results.filter(t => t.target_period === "90-day").length,
-              "ongoing": tasks.results.filter(t => t.target_period === "ongoing").length
-            },
-            blocked: tasks.results.filter(t => t.waiting_on).length,
-            tribal_knowledge: tasks.results.filter(t => t.knowledge_type === "tribal-knowledge").length,
-            total_leadership_moves: moves.results.length,
-            total_reflections: reflections.results.length,
-            total_knowledge: knowledge.results.length,
-            total_intel: intel.results.length
-          }
+          generated_at: new Date().toISOString(),
+          weeks,
+          tasks_created: tasksCreated.results,
+          tasks_completed: tasksCompleted.results,
+          knowledge_added: knowledgeAdded.results,
+          intel_added: intelAdded.results,
+          moves_by_week: movesByWeek.results,
+          reflection_weeks: reflectionWeeks.results.map(r => r.week_of),
+          scoreboard_history: scoreboardHistory
         });
       }
 
@@ -792,6 +974,7 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
         const since = url.searchParams.get("since");
         const fields = url.searchParams.get("fields");
         const limit = url.searchParams.get("limit");
+        const includeSuperseded = url.searchParams.get("include_superseded") === "1";
         let sql = "SELECT * FROM knowledge";
         const params = [];
         const conditions = [];
@@ -799,10 +982,18 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
         if (area) { conditions.push("area = ?"); params.push(area); }
         if (search) { conditions.push("(subject LIKE ? OR detail LIKE ?)"); params.push(`%${search}%`, `%${search}%`); }
         if (since) { conditions.push("created_at >= ?"); params.push(since); }
-        if (conditions.length) sql += " WHERE " + conditions.join(" AND ");
-        sql += " ORDER BY created_at DESC";
-        sql += limitClause(limit);
-        const { results } = await db.prepare(sql).bind(...params).all();
+        if (!includeSuperseded) conditions.push("superseded_by IS NULL");
+        let results;
+        try {
+          let q = sql + (conditions.length ? " WHERE " + conditions.join(" AND ") : "") + " ORDER BY created_at DESC" + limitClause(limit);
+          ({ results } = await db.prepare(q).bind(...params).all());
+        } catch (e) {
+          if (!isMigrationPending(e)) throw e;
+          // Pre-migration: no superseded_by column — rerun without that filter.
+          const legacy = conditions.filter(c => c !== "superseded_by IS NULL");
+          let q = sql + (legacy.length ? " WHERE " + legacy.join(" AND ") : "") + " ORDER BY created_at DESC" + limitClause(limit);
+          ({ results } = await db.prepare(q).bind(...params).all());
+        }
         return json({ knowledge: projectFields(results, fields), count: results.length });
       }
 
@@ -811,22 +1002,78 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
         if (!body.category || !body.area || !body.subject || !body.detail) {
           return err("category, area, subject, and detail are required");
         }
-        const result = await db.prepare(
-          `INSERT INTO knowledge (category, area, subject, detail, people_involved, source_label, source_meeting_id, tags)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-        ).bind(
-          body.category, body.area, body.subject, body.detail,
-          body.people_involved || null, body.source_label || null,
-          body.source_meeting_id || null, body.tags || null
-        ).run();
+        // Write-time conflict check: surface live entries on the same subject BEFORE
+        // this one lands, so contradictions get flagged at capture instead of waiting
+        // for the monthly /audit. Purely advisory — never blocks the insert.
+        let conflicts = [];
+        try {
+          const existing = await db.prepare(
+            "SELECT id, category, area, subject, detail, created_at FROM knowledge WHERE subject = ? COLLATE NOCASE AND superseded_by IS NULL ORDER BY created_at DESC LIMIT 5"
+          ).bind(body.subject).all();
+          conflicts = existing.results;
+        } catch (e) {
+          if (!isMigrationPending(e)) throw e;
+        }
+        let result;
+        try {
+          result = await db.prepare(
+            `INSERT INTO knowledge (category, area, subject, detail, people_involved, source_label, source_meeting_id, tags, related_ids, confidence)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          ).bind(
+            body.category, body.area, body.subject, body.detail,
+            body.people_involved || null, body.source_label || null,
+            body.source_meeting_id || null, body.tags || null,
+            body.related_ids || null, body.confidence || null
+          ).run();
+        } catch (e) {
+          if (!isMigrationPending(e)) throw e;
+          result = await db.prepare(
+            `INSERT INTO knowledge (category, area, subject, detail, people_involved, source_label, source_meeting_id, tags)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+          ).bind(
+            body.category, body.area, body.subject, body.detail,
+            body.people_involved || null, body.source_label || null,
+            body.source_meeting_id || null, body.tags || null
+          ).run();
+        }
         const created = await db.prepare("SELECT * FROM knowledge WHERE id = ?").bind(result.meta.last_row_id).first();
-        return json(created, 201);
+        return json({ ...created, conflicts, has_conflicts: conflicts.length > 0 }, 201);
+      }
+
+      // Resolve a knowledge entry's edges: related_ids out, plus anything pointing back.
+      if (matchPath(path, "/knowledge/:id/related") && method === "GET") {
+        const [id] = matchPath(path, "/knowledge/:id/related");
+        const row = await db.prepare("SELECT * FROM knowledge WHERE id = ?").bind(id).first();
+        if (!row) return err("Not found", 404);
+        let related = [], supersededBy = null, supersedes = [];
+        try {
+          const ids = (row.related_ids || "").split(",").map(s => parseInt(s.trim(), 10)).filter(Number.isFinite);
+          if (ids.length) {
+            const placeholders = ids.map(() => "?").join(",");
+            const rel = await db.prepare(`SELECT id, category, area, subject, created_at, superseded_by FROM knowledge WHERE id IN (${placeholders})`).bind(...ids).all();
+            related = rel.results;
+          }
+          if (row.superseded_by) {
+            supersededBy = await db.prepare("SELECT id, subject, created_at FROM knowledge WHERE id = ?").bind(row.superseded_by).first();
+          }
+          const sup = await db.prepare("SELECT id, subject, created_at FROM knowledge WHERE superseded_by = ?").bind(id).all();
+          supersedes = sup.results;
+          const backlinks = await db.prepare(
+            "SELECT id, category, area, subject, created_at FROM knowledge WHERE (',' || related_ids || ',') LIKE ? AND id != ?"
+          ).bind(`%,${id},%`, id).all();
+          for (const b of backlinks.results) {
+            if (!related.some(r => r.id === b.id)) related.push({ ...b, backlink: true });
+          }
+        } catch (e) {
+          if (!isMigrationPending(e)) throw e;
+        }
+        return json({ entry: row, related, superseded_by_entry: supersededBy, supersedes });
       }
 
       if (matchPath(path, "/knowledge/:id") && method === "PATCH") {
         const [id] = matchPath(path, "/knowledge/:id");
         const body = await request.json();
-        const allowed = ["category","area","subject","detail","people_involved","source_label","source_meeting_id","tags"];
+        const allowed = ["category","area","subject","detail","people_involved","source_label","source_meeting_id","tags","related_ids","superseded_by","confidence"];
         const sets = ["updated_at = datetime('now')"];
         const vals = [];
         for (const key of allowed) {
@@ -872,6 +1119,17 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
         vals.push(new Date().toISOString());
         await db.prepare(`UPDATE scoreboard SET ${sets.join(", ")} WHERE id = 1`).bind(...vals).run();
         const updated = await db.prepare("SELECT * FROM scoreboard WHERE id = 1").first();
+        // Snapshot into history so /trends can chart the metrics over time.
+        // One row per day — a same-day re-patch replaces that day's snapshot.
+        try {
+          await db.prepare("DELETE FROM scoreboard_history WHERE snapshot_date = date('now')").run();
+          await db.prepare(
+            `INSERT INTO scoreboard_history (snapshot_date, trir, recordables_ytd, lost_time_incidents_ytd, near_misses_ytd, observations_month, observations_ytd, positive_interrupters_month, man_hours_ytd, forklift_incidents_ytd, notes)
+             SELECT date('now'), trir, recordables_ytd, lost_time_incidents_ytd, near_misses_ytd, observations_month, observations_ytd, positive_interrupters_month, man_hours_ytd, forklift_incidents_ytd, notes FROM scoreboard WHERE id = 1`
+          ).run();
+        } catch (e) {
+          if (!isMigrationPending(e)) throw e; // pre-migration: skip snapshot silently
+        }
         return json(updated);
       }
 

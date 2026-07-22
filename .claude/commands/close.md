@@ -35,6 +35,8 @@ eaton /intel -X POST -H 'Content-Type: application/json' -d '{"person_name":"...
 ```
 **Required fields:** Knowledge → category, area, subject, detail, source_label (decisions use category `decision`). Intel → person_name, intel_type, content, source_label.
 
+**Conflict handling (v3.8.0+):** every knowledge POST response includes `conflicts` (live same-subject entries). If `has_conflicts` is true, surface it to Charlie before moving on — if the new entry replaces the old, PATCH the old with `{"superseded_by": <new_id>}`. Don't leave contradicting live entries for /audit to find a month later.
+
 ## Step 4: Lessons check
 Scan THIS conversation for dead ends, silent failures, wrong assumptions, process gaps. If any, push as knowledge (`category: lesson, area: workflow`) — present for review first. If nothing went wrong, skip silently.
 

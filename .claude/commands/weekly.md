@@ -21,8 +21,11 @@ eaton "/moves?since=$SINCE" | jq .                    # this-week leadership mov
 eaton "/knowledge?since=$SINCE&fields=id,category,area,subject,people_involved,created_at" | jq .
 eaton "/intel?since=$SINCE&fields=person_name,intel_type,created_at" | jq .
 eaton "/knowledge?category=metric&q=audit-baseline&fields=subject,created_at&limit=1" | jq .
+eaton "/trends?weeks=12" | jq .                       # 12-week series: tasks, knowledge, intel, moves, scoreboard history
 ```
 Total payload: ~30–50KB instead of ~500KB.
+
+`/trends` (v3.8.0+) is the trajectory view: created-vs-completed per week, capture rates, moves by category over time, and `scoreboard_history` (snapshotted on every scoreboard PATCH). Use it for the direction of each My Five goal, not just this week's number — "TRIR flat 3 weeks," "observation rate declining," "zero influence-category moves since June." That trajectory read IS the succession story Laura tracks.
 
 ## Step 2: WSRA progress
 21 assigned to Charlie (12 copper, 9 steel). Calculate current rate from open tasks tagged WSRA. On track for EOY 100% site-wide?
