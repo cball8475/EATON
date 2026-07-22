@@ -1,10 +1,38 @@
-// eaton-ehs-api Worker v3.6.0
+// eaton-ehs-api Worker v3.7.0
 // Deployed to: https://eaton-ehs-api.cball8475.workers.dev
 // D1 binding: DB → 62ce85d7-0cc1-4832-aa57-d5b09ceaa132
 // Secrets: API_TOKEN, ANTHROPIC_API_KEY, RESEND_API_KEY (for weekly digest)
+// Vars: GIT_SHA (set on deploy so /health reports the live commit — see infra/deploy-notes.md)
 // Cron: "0 14 * * 5" (Friday 10am ET)
-// Last deployed from project: 2026-06-03 (v3.6.0 — weekly digest moved from SendGrid to Resend)
-// Prior: 2026-05-27 (v3.5.0 — added /scoreboard GET+PATCH for EHS safety pulse metrics)
+// Changelog:
+//   v3.7.0 (2026-06-29) — enum validation (400 w/ allowed values), /brief + /pulse composite
+//     endpoints, /intel person_name→person_id resolution, scoreboard age/stale, /health git SHA
+//   v3.6.0 (2026-06-03) — weekly digest moved from SendGrid to Resend
+//   v3.5.0 (2026-05-27) — added /scoreboard GET+PATCH for EHS safety pulse metrics
+
+const VERSION = "3.7.0";
+
+// Server-side enum guards. The DB has no enforced CHECK constraints, so this is the
+// only thing standing between a typo and a bad row (see task #389 — status "investigation").
+const ENUMS = {
+  status: ["todo", "wip", "done", "projects", "undated"],
+  priority: ["High", "Medium", "Low"],
+  ownership: ["mine", "fyi"],
+  target_period: ["this-week", "30-day", "60-day", "90-day", "ongoing"]
+};
+
+// Returns an error string for the first invalid enum field, or null if all clean.
+// Treats undefined/null/"" as absent (those fall back to defaults or stay null on insert).
+function validateEnums(body, keys) {
+  for (const key of keys) {
+    const v = body[key];
+    if (v === undefined || v === null || v === "") continue;
+    if (!ENUMS[key].includes(v)) {
+      return `${key} must be one of: ${ENUMS[key].join(", ")} — got "${v}"`;
+    }
+  }
+  return null;
+}
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -46,6 +74,72 @@ function limitClause(limitParam) {
   const n = parseInt(limitParam, 10);
   if (Number.isFinite(n) && n > 0 && n <= 1000) return ` LIMIT ${n}`;
   return "";
+}
+
+// Attach age_days + stale (>7d) to a scoreboard row. Reads the `last_updated` column.
+function withScoreboardAge(row) {
+  if (!row) return {};
+  const out = { ...row };
+  if (row.last_updated) {
+    const ageDays = Math.floor((Date.now() - new Date(row.last_updated).getTime()) / 86400000);
+    out.age_days = ageDays;
+    out.stale = ageDays > 7;
+  } else {
+    out.age_days = null;
+    out.stale = true;
+  }
+  return out;
+}
+
+// Full stats object. Extracted so /stats and /brief share one source of truth.
+async function computeStats(db) {
+  const totalTasks = await db.prepare("SELECT COUNT(*) as c FROM tasks").first();
+  const byStatus = await db.prepare("SELECT status, COUNT(*) as c FROM tasks GROUP BY status").all();
+  const overdue = await db.prepare("SELECT COUNT(*) as c FROM tasks WHERE due_date < date('now') AND status NOT IN ('done')").first();
+  const dueSoon = await db.prepare("SELECT COUNT(*) as c FROM tasks WHERE due_date BETWEEN date('now') AND date('now', '+2 days') AND status NOT IN ('done')").first();
+  const automatable = await db.prepare("SELECT COUNT(*) as c FROM tasks WHERE automatable = 1").first();
+  const totalPeople = await db.prepare("SELECT COUNT(*) as c FROM people").first();
+  const byOwnership = await db.prepare("SELECT ownership, COUNT(*) as c FROM tasks WHERE status != 'done' GROUP BY ownership").all();
+  const byPeriod = await db.prepare("SELECT target_period, COUNT(*) as c FROM tasks WHERE status != 'done' GROUP BY target_period").all();
+  const blocked = await db.prepare("SELECT COUNT(*) as c FROM tasks WHERE waiting_on IS NOT NULL AND status NOT IN ('done')").first();
+  const tribalKnowledge = await db.prepare("SELECT COUNT(*) as c FROM tasks WHERE knowledge_type = 'tribal-knowledge'").first();
+  const totalMoves = await db.prepare("SELECT COUNT(*) as c FROM leadership_moves").first();
+  const movesByCategory = await db.prepare("SELECT category, COUNT(*) as c FROM leadership_moves GROUP BY category").all();
+  const movesThisWeek = await db.prepare("SELECT COUNT(*) as c FROM leadership_moves WHERE date >= date('now', '-7 days')").first();
+  const movesThisMonth = await db.prepare("SELECT COUNT(*) as c FROM leadership_moves WHERE date >= date('now', '-30 days')").first();
+  const totalReflections = await db.prepare("SELECT COUNT(*) as c FROM weekly_reflections").first();
+  const latestReflection = await db.prepare("SELECT week_of FROM weekly_reflections ORDER BY week_of DESC LIMIT 1").first();
+  const totalKnowledge = await db.prepare("SELECT COUNT(*) as c FROM knowledge").first();
+  const knowledgeByCategory = await db.prepare("SELECT category, COUNT(*) as c FROM knowledge GROUP BY category").all();
+  const knowledgeThisWeek = await db.prepare("SELECT COUNT(*) as c FROM knowledge WHERE created_at >= date('now', '-7 days')").first();
+  const totalIntel = await db.prepare("SELECT COUNT(*) as c FROM people_intel").first();
+  const intelByType = await db.prepare("SELECT intel_type, COUNT(*) as c FROM people_intel GROUP BY intel_type").all();
+  return {
+    total_tasks: totalTasks.c, by_status: byStatus.results,
+    overdue: overdue.c, due_soon: dueSoon.c,
+    automatable: automatable.c, total_people: totalPeople.c,
+    by_ownership: byOwnership.results, by_period: byPeriod.results,
+    blocked: blocked.c, tribal_knowledge: tribalKnowledge.c,
+    leadership: {
+      total_moves: totalMoves.c,
+      by_category: movesByCategory.results,
+      this_week: movesThisWeek.c,
+      this_month: movesThisMonth.c
+    },
+    reflections: {
+      total: totalReflections.c,
+      latest_week: latestReflection?.week_of || null
+    },
+    knowledge: {
+      total: totalKnowledge.c,
+      by_category: knowledgeByCategory.results,
+      this_week: knowledgeThisWeek.c
+    },
+    intel: {
+      total: totalIntel.c,
+      by_type: intelByType.results
+    }
+  };
 }
 
 // ── WEEKLY DIGEST ──
@@ -227,13 +321,23 @@ export default {
     const db = env.DB;
 
     if (path === "/health" && method === "GET") {
-      return json({ status: "ok", service: "eaton-ehs-api", version: "3.6.0", ts: new Date().toISOString() });
+      return json({ status: "ok", service: "eaton-ehs-api", version: VERSION, git_sha: env.GIT_SHA || "unknown", ts: new Date().toISOString() });
     }
 
-    // Auth
+    // Auth — prefer the Secrets Store binding (AUTH_TOKEN), fall back to the
+    // per-worker API_TOKEN secret. The deployed worker has read from Secrets Store
+    // since before it was tracked here; keep this so a repo deploy doesn't silently
+    // change which secret is authoritative. Rotate the live token in the Secrets
+    // Store value bound as AUTH_TOKEN, not the API_TOKEN fallback.
     const authHeader = request.headers.get("Authorization") || "";
     const token = authHeader.replace("Bearer ", "");
-    if (token !== env.API_TOKEN) return err("Unauthorized", 401);
+    let expectedToken = env.API_TOKEN;
+    try {
+      if (env.AUTH_TOKEN && typeof env.AUTH_TOKEN.get === "function") {
+        expectedToken = await env.AUTH_TOKEN.get();
+      }
+    } catch (_) {}
+    if (token !== expectedToken) return err("Unauthorized", 401);
 
     try {
       // ── DIGEST ──
@@ -289,6 +393,8 @@ export default {
       if (path === "/tasks" && method === "POST") {
         const body = await request.json();
         if (!body.title) return err("title is required");
+        const taskEnumErr = validateEnums(body, ["status", "priority", "ownership", "target_period"]);
+        if (taskEnumErr) return err(taskEnumErr);
         const result = await db.prepare(
           `INSERT INTO tasks (title, description, due_date, priority, status, assignee_id, automatable, recurring, recurrence_pattern, template_id, source, tags, notes, ai_extracted, source_label, source_meeting_id, ownership, waiting_on, knowledge_type, target_period)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -310,6 +416,8 @@ export default {
       if (matchPath(path, "/tasks/:id") && method === "PATCH") {
         const [id] = matchPath(path, "/tasks/:id");
         const body = await request.json();
+        const taskPatchEnumErr = validateEnums(body, ["status", "priority", "ownership", "target_period"]);
+        if (taskPatchEnumErr) return err(taskPatchEnumErr);
         const allowed = ["title","description","due_date","priority","status","assignee_id","automatable","recurring","recurrence_pattern","template_id","tags","notes","source_label","source_meeting_id","ownership","waiting_on","knowledge_type","target_period"];
         const sets = ["updated_at = datetime('now')"];
         const vals = [];
@@ -447,7 +555,7 @@ export default {
         const intel = await db.prepare("SELECT i.*, p.name as linked_person_name FROM people_intel i LEFT JOIN people p ON i.person_id = p.id ORDER BY i.created_at DESC").all();
         return json({
           exported_at: new Date().toISOString(),
-          version: "3.6.0",
+          version: VERSION,
           tasks: tasks.results,
           people: people.results,
           templates: templates.results,
@@ -633,16 +741,25 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
         if (!body.person_name || !body.intel_type || !body.content) return err("person_name, intel_type, and content are required");
         const validTypes = ["relationship","political","working_style","reliability","alignment","history","strength","weakness","opportunity"];
         if (!validTypes.includes(body.intel_type)) return err(`intel_type must be one of: ${validTypes.join(", ")}`);
+        // Resolve person_name → person_id so intel links to a real person row.
+        // needs_link = true when the caller gave no id and the name matched 0 or 2+ people.
+        let resolvedPersonId = body.person_id || null;
+        let needsLink = false;
+        if (!resolvedPersonId) {
+          const matches = await db.prepare("SELECT id FROM people WHERE name = ? COLLATE NOCASE").bind(body.person_name).all();
+          if (matches.results.length === 1) resolvedPersonId = matches.results[0].id;
+          else needsLink = true;
+        }
         const result = await db.prepare(
           `INSERT INTO people_intel (person_id, person_name, intel_type, content, source_label, source_meeting_id)
            VALUES (?, ?, ?, ?, ?, ?)`
         ).bind(
-          body.person_id || null, body.person_name,
+          resolvedPersonId, body.person_name,
           body.intel_type, body.content,
           body.source_label || null, body.source_meeting_id || null
         ).run();
         const created = await db.prepare("SELECT i.*, p.name as linked_person_name FROM people_intel i LEFT JOIN people p ON i.person_id = p.id WHERE i.id = ?").bind(result.meta.last_row_id).first();
-        return json(created, 201);
+        return json({ ...created, needs_link: needsLink }, 201);
       }
 
       if (matchPath(path, "/intel/:id") && method === "PATCH") {
@@ -739,7 +856,7 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
       // ── SCOREBOARD (single-row metrics dashboard for safety pulse) ──
       if (path === "/scoreboard" && method === "GET") {
         const row = await db.prepare("SELECT * FROM scoreboard WHERE id = 1").first();
-        return json(row || {});
+        return json(withScoreboardAge(row));
       }
 
       if (path === "/scoreboard" && method === "PATCH") {
@@ -760,52 +877,66 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
 
       // ── STATS ──
       if (path === "/stats" && method === "GET") {
-        const totalTasks = await db.prepare("SELECT COUNT(*) as c FROM tasks").first();
-        const byStatus = await db.prepare("SELECT status, COUNT(*) as c FROM tasks GROUP BY status").all();
-        const overdue = await db.prepare("SELECT COUNT(*) as c FROM tasks WHERE due_date < date('now') AND status NOT IN ('done')").first();
-        const dueSoon = await db.prepare("SELECT COUNT(*) as c FROM tasks WHERE due_date BETWEEN date('now') AND date('now', '+2 days') AND status NOT IN ('done')").first();
-        const automatable = await db.prepare("SELECT COUNT(*) as c FROM tasks WHERE automatable = 1").first();
-        const totalPeople = await db.prepare("SELECT COUNT(*) as c FROM people").first();
-        const byOwnership = await db.prepare("SELECT ownership, COUNT(*) as c FROM tasks WHERE status != 'done' GROUP BY ownership").all();
-        const byPeriod = await db.prepare("SELECT target_period, COUNT(*) as c FROM tasks WHERE status != 'done' GROUP BY target_period").all();
-        const blocked = await db.prepare("SELECT COUNT(*) as c FROM tasks WHERE waiting_on IS NOT NULL AND status NOT IN ('done')").first();
-        const tribalKnowledge = await db.prepare("SELECT COUNT(*) as c FROM tasks WHERE knowledge_type = 'tribal-knowledge'").first();
-        const totalMoves = await db.prepare("SELECT COUNT(*) as c FROM leadership_moves").first();
-        const movesByCategory = await db.prepare("SELECT category, COUNT(*) as c FROM leadership_moves GROUP BY category").all();
-        const movesThisWeek = await db.prepare("SELECT COUNT(*) as c FROM leadership_moves WHERE date >= date('now', '-7 days')").first();
-        const movesThisMonth = await db.prepare("SELECT COUNT(*) as c FROM leadership_moves WHERE date >= date('now', '-30 days')").first();
-        const totalReflections = await db.prepare("SELECT COUNT(*) as c FROM weekly_reflections").first();
-        const latestReflection = await db.prepare("SELECT week_of FROM weekly_reflections ORDER BY week_of DESC LIMIT 1").first();
-        const totalKnowledge = await db.prepare("SELECT COUNT(*) as c FROM knowledge").first();
-        const knowledgeByCategory = await db.prepare("SELECT category, COUNT(*) as c FROM knowledge GROUP BY category").all();
-        const knowledgeThisWeek = await db.prepare("SELECT COUNT(*) as c FROM knowledge WHERE created_at >= date('now', '-7 days')").first();
-        const totalIntel = await db.prepare("SELECT COUNT(*) as c FROM people_intel").first();
-        const intelByType = await db.prepare("SELECT intel_type, COUNT(*) as c FROM people_intel GROUP BY intel_type").all();
+        return json(await computeStats(db));
+      }
+
+      // ── COMPOSITE: PULSE (everything /status needs in one call) ──
+      if (path === "/pulse" && method === "GET") {
+        const today = new Date().toISOString().split("T")[0];
+        const stats = await computeStats(db);
+        const overdueTop = await db.prepare(
+          "SELECT title, due_date, priority, waiting_on FROM tasks WHERE due_date < ? AND status NOT IN ('done') ORDER BY due_date ASC LIMIT 3"
+        ).bind(today).all();
+        const blockers = await db.prepare(
+          "SELECT title, waiting_on, priority FROM tasks WHERE waiting_on IS NOT NULL AND status NOT IN ('done') ORDER BY CASE priority WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END LIMIT 5"
+        ).all();
         return json({
-          total_tasks: totalTasks.c, by_status: byStatus.results,
-          overdue: overdue.c, due_soon: dueSoon.c,
-          automatable: automatable.c, total_people: totalPeople.c,
-          by_ownership: byOwnership.results, by_period: byPeriod.results,
-          blocked: blocked.c, tribal_knowledge: tribalKnowledge.c,
-          leadership: {
-            total_moves: totalMoves.c,
-            by_category: movesByCategory.results,
-            this_week: movesThisWeek.c,
-            this_month: movesThisMonth.c
-          },
-          reflections: {
-            total: totalReflections.c,
-            latest_week: latestReflection?.week_of || null
-          },
-          knowledge: {
-            total: totalKnowledge.c,
-            by_category: knowledgeByCategory.results,
-            this_week: knowledgeThisWeek.c
-          },
-          intel: {
-            total: totalIntel.c,
-            by_type: intelByType.results
-          }
+          generated_at: new Date().toISOString(),
+          stats,
+          overdue_top: overdueTop.results,
+          blockers: blockers.results
+        });
+      }
+
+      // ── COMPOSITE: BRIEF (everything /morning needs in one call) ──
+      if (path === "/brief" && method === "GET") {
+        const now = new Date();
+        const today = now.toISOString().split("T")[0];
+        const yesterday = new Date(now.getTime() - 86400000).toISOString().split("T")[0];
+        const since14 = new Date(now.getTime() - 14 * 86400000).toISOString().split("T")[0];
+        const stats = await computeStats(db);
+        const openMine = await db.prepare(
+          "SELECT t.id, t.title, t.priority, t.due_date, t.target_period, t.waiting_on, t.tags FROM tasks t WHERE t.status = 'todo' AND t.ownership = 'mine' ORDER BY CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END, t.due_date ASC, CASE t.priority WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END"
+        ).all();
+        const overdue = await db.prepare(
+          "SELECT id, title, due_date, priority, waiting_on FROM tasks WHERE due_date < ? AND status NOT IN ('done') ORDER BY due_date ASC"
+        ).bind(today).all();
+        const dueToday = await db.prepare(
+          "SELECT id, title, priority, waiting_on FROM tasks WHERE due_date = ? AND status NOT IN ('done')"
+        ).bind(today).all();
+        const blocked = await db.prepare(
+          "SELECT id, title, waiting_on, priority FROM tasks WHERE waiting_on IS NOT NULL AND status NOT IN ('done') ORDER BY CASE priority WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END"
+        ).all();
+        const completedSinceYesterday = await db.prepare(
+          "SELECT id, title, completed_at, priority, notes FROM tasks WHERE completed_at >= ? AND status = 'done' ORDER BY completed_at DESC"
+        ).bind(yesterday).all();
+        const scoreboard = await db.prepare("SELECT * FROM scoreboard WHERE id = 1").first();
+        const recentIntel = await db.prepare(
+          "SELECT person_name, intel_type, created_at FROM people_intel WHERE created_at >= ? ORDER BY created_at DESC"
+        ).bind(since14).all();
+        const peopleNames = await db.prepare("SELECT id, name FROM people ORDER BY name").all();
+        return json({
+          generated_at: now.toISOString(),
+          today,
+          stats,
+          open_mine: openMine.results,
+          overdue: overdue.results,
+          due_today: dueToday.results,
+          blocked: blocked.results,
+          completed_since_yesterday: completedSinceYesterday.results,
+          scoreboard: withScoreboardAge(scoreboard),
+          recent_intel: recentIntel.results,
+          people_names: peopleNames.results
         });
       }
 

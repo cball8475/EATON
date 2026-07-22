@@ -8,5 +8,13 @@ binding = "DB"
 database_name = "eaton-ehs-dashboard"
 database_id = "62ce85d7-0cc1-4832-aa57-d5b09ceaa132"
 
+# Auth token lives in Cloudflare Secrets Store, bound as AUTH_TOKEN (the worker
+# reads env.AUTH_TOKEN.get(), falling back to the API_TOKEN secret). Declared here
+# so `wrangler deploy` keeps the binding instead of tearing it out.
+[[secrets_store_secrets]]
+binding = "AUTH_TOKEN"
+store_id = "80c48360a0e54dd69425da2dfbde21ad"
+secret_name = "EATON_TOKEN"
+
 [triggers]
 crons = ["0 14 * * 5"]

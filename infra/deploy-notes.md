@@ -16,6 +16,33 @@
 - Prior deploys using `--no-wait` appeared to succeed but uploaded the wrong filename — always verify with grep before deploying
 - Single-file HTML, no build step
 
+> **Note (2026-06-29):** the Netlify deploy was **public** and shipped the API token in client JS — a full read/write leak. The dashboard is moving to Cloudflare Pages behind Access (below). Once that's live, decommission this Netlify site (or leave it — it no longer carries a token, so it just won't load data).
+
+---
+
+## Dashboard auth — Cloudflare Pages + Access (replaces public Netlify)
+
+The dashboard no longer hardcodes a token. It prompts once in the browser and stores the value in `localStorage` (see the config block in `index.html`). It's served behind Cloudflare Access so only you can reach it; the in-browser token is therefore only ever exposed to an authenticated session.
+
+### One-time setup
+1. **Deploy to Pages** (single static file, no build):
+   ```bash
+   mkdir -p /tmp/eaton-dash && cp index.html /tmp/eaton-dash/index.html
+   npx wrangler pages deploy /tmp/eaton-dash --project-name eaton-ehs-dashboard
+   ```
+   Note the `*.pages.dev` URL it prints.
+2. **Put Access in front** — Cloudflare dashboard → **Zero Trust** → **Access** → **Applications** → **Add an application** → **Self-hosted**:
+   - Application domain: the `eaton-ehs-dashboard.pages.dev` hostname
+   - Policy: **Allow**, include **Emails** = `charlieball@eaton.com` (+ any others)
+   - Session duration: your preference (e.g. 24h)
+3. **First visit:** Cloudflare emails a one-time PIN → log in → dashboard loads → enter the (rotated) token at the prompt. Stored locally from then on.
+
+### After a token rotation
+In the dashboard browser console: `localStorage.removeItem('eaton_token')` then reload, and enter the new token.
+
+### Cost
+Cloudflare Pages: free. Cloudflare Access: free up to 50 users. (Netlify password protection would have required a Pro plan — this avoids that.)
+
 ---
 
 ## Cloudflare Worker API
@@ -30,9 +57,20 @@
 ```bash
 cd infra
 export XDG_CONFIG_HOME="$HOME/.wrangler-config"
-npx wrangler deploy
+# Set GIT_SHA on its own line — `GIT_SHA=$(...) wrangler --var "$GIT_SHA"` expands
+# the arg BEFORE the inline assignment applies, passing an empty value.
+GIT_SHA=$(git rev-parse --short HEAD)
+npx wrangler deploy --var GIT_SHA:"$GIT_SHA"
 ```
-Reads `infra/wrangler.toml` (D1 binding + cron). Secrets stay intact. Verify with `curl https://eaton-ehs-api.cball8475.workers.dev/health` — version should match the header in `worker-api.mjs`.
+Reads `infra/wrangler.toml` (D1 binding + cron). Secrets stay intact.
+
+**Stamp the commit (v3.7.0+):** pass `GIT_SHA` as a var on every deploy (shown above) so `/health` reports the live commit. That's how you check live-vs-repo drift: `curl .../health` returns `{ version, git_sha, ... }` — if `git_sha` doesn't match `git rev-parse --short HEAD` in the repo, the deploy is behind. Don't hardcode the version anywhere else; `/health` is the only truth.
+
+### WAF / firewall (required for the chat surface)
+The Claude chat surface fetches the API with a browser-style user-agent, not curl. If a Cloudflare WAF or firewall rule filters by user-agent, those calls 403 and the morning brief silently half-renders (see D1 knowledge #454, auth-verification lesson). Keep a skip/allow rule on the API path:
+- Scope: `http.host eq "eaton-ehs-api.cball8475.workers.dev"` (or the route path)
+- Action: skip remaining WAF rules / managed rules for that path
+- Auth is already enforced by the Bearer check in the Worker — the WAF UA filtering adds no security here, only breakage.
 
 ### Deploy pattern (fallback: curl PUT to Cloudflare API)
 Uses multipart form data:
