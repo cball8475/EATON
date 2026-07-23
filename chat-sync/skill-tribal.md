@@ -37,7 +37,8 @@ D1 entry:
 ```
 
 If this creates or updates a task, flag it — don't auto-create.
-If the knowledge contradicts something already in D1, flag the conflict.
+
+**Conflict handling (v3.8+):** the POST response includes `conflicts` — live entries with the same subject. If `has_conflicts` is true, show Charlie both versions and ask which stands. If the new entry replaces the old, retire the old one: `PATCH /knowledge/{old_id}` with `{"superseded_by": <new_id>}`. Never leave two live entries disagreeing on the same subject.
 
 ## Rules
 - Keep entries tight. Distill raw text — don't store the raw paste.
