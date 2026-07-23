@@ -1,3 +1,10 @@
+# Claude Chat Sync — DORMANT (no Chat project exists)
+
+> **2026-07-23:** Charlie confirmed there is no Claude.ai Eaton EHS Chat project.
+> This folder is kept as a template for if/when one is created — the files below
+> are current as of worker v3.9.0. Do NOT spend session time refreshing this
+> folder unless a Chat project actually exists.
+
 # Claude Chat Sync — July 23 update (v3.9.0 + token rotation)
 
 Apply the v3.8.0→v3.9.0 memory-system upgrade to the Claude Chat project. **Do Step 1 first — the Chat project is broken until the token updates.** Estimated time: 5 min.

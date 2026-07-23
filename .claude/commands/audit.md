@@ -39,7 +39,7 @@ This is the ONLY command that should ever fetch `/knowledge` and `/intel` full b
 ## Step 3: Drift checks
 **Stale knowledge** — entries older than 30 days with no newer entry on the same subject.
 **Cold relationships** — key people (Kate, Laura, Gloria, all shift supervisors) with no intel entry in 21+ days.
-**Skill drift** — scan `.claude/commands/*.md` and `chat-sync/skill-*.md` for references to deleted files, removed endpoints, stale field names. Flag any found.
+**Skill drift** — scan `.claude/commands/*.md` for references to deleted files, removed endpoints, stale field names. Flag any found. (`chat-sync/` is dormant — no Chat project exists; skip it.)
 
 ## Step 4: Output — severity tagged
 ```
