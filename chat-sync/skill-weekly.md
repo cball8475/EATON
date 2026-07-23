@@ -13,6 +13,7 @@ Compute `SINCE` = 7 days before today (format YYYY-MM-DD). Use `EATON_API` + `EA
 - `GET /knowledge?since={SINCE}&fields=id,category,area,subject,people_involved,created_at` — this-week knowledge headers
 - `GET /intel?since={SINCE}&fields=person_name,intel_type,created_at` — this-week intel headers
 - `GET /knowledge?category=metric&q=audit-baseline&fields=subject,created_at&limit=1` — audit cadence check
+- `GET /trends?weeks=12` — 12-week series: tasks created/completed, knowledge/intel capture, moves by category, scoreboard history. Use for the DIRECTION of each My Five goal, not just this week's number ("TRIR flat 3 weeks", "zero influence-category moves since June"). Trajectory is what Laura reads.
 
 Total payload: ~30–50KB instead of ~500KB.
 

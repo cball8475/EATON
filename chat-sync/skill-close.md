@@ -30,6 +30,8 @@ Present everything from Step 2 for review. Then push:
 - Knowledge: category, area, subject, detail, source_label. Decisions use category `decision`.
 - Intel: person_name, intel_type, content, source_label.
 
+**Conflict handling (v3.8+/v3.9+):** every knowledge and intel POST response includes `conflicts` (live entries on the same subject / same person + intel_type) and `has_conflicts`. When true, surface it to Charlie before moving on — if the new entry replaces the old, `PATCH` the old with `{"superseded_by": <new_id>}`. Don't leave contradicting live entries for /audit to find a month later.
+
 ## Step 4: Lessons check
 Scan THIS conversation for dead ends, silent failures, wrong assumptions, process gaps. If any, push as knowledge (`category: lesson, area: workflow`). Present for review first. If nothing went wrong, skip silently.
 

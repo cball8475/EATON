@@ -1,5 +1,9 @@
 Full semantic audit + drift scan. Heavy data fetch — only run on demand, not weekly. Target cadence: every 21–30 days, or when something feels off.
 
+## Step 0: Backup + version check
+- `GET /health` — note `version` + `git_sha`. If Claude Code reported a newer version than what's live, flag drift (full repo-vs-live diff lives in the Claude Code /audit — Chat just flags the version).
+- Backups: Monday GitHub cron + nightly R2 snapshots. If Charlie hasn't seen a backup commit on the EATON repo main in 8+ days, flag it.
+
 ## Step 1: Pull full bodies (only here, not in /morning or /weekly)
 
 Use `EATON_API` + `EATON_TOKEN` from Project Instructions.
@@ -10,7 +14,9 @@ Use `EATON_API` + `EATON_TOKEN` from Project Instructions.
 - `GET /tasks?waiting_on=any`
 - `GET /tasks?status=todo`
 
-This is the only command that should ever fetch `/knowledge` and `/intel` full bodies. Everything else uses `?since=` + `?fields=`.
+This is the only command that should ever fetch `/knowledge` and `/intel` full bodies. Everything else uses `?since=` + `?fields=`. Add `?include_superseded=1` to both — the audit needs retired entries to verify supersede chains; normal reads never should.
+
+**Resolution rule (v3.8+/v3.9+):** contradictions found here get resolved with `PATCH {"superseded_by": <winner_id>}` on the losing entry (knowledge AND intel both support it) — not deletion. POST-time conflict flagging should catch most of these at capture now; anything surfacing here leaked past a capture.
 
 ## Step 2: Semantic checks
 

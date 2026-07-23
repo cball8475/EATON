@@ -26,8 +26,8 @@ Charlie Ball. Sr. EHS Engineer at Eaton's Sumter, SC facility. Started May 4, 20
 ## API Access
 
 **EATON_API:** `https://eaton-ehs-api.cball8475.workers.dev`
-**EATON_TOKEN:** `9Cls9a9wbMexRkwkvy0dpmxPfS4zLM7OFepPYCu-VDA`
-**Worker version:** v3.5.0
+**EATON_TOKEN:** `Karwji0lZdieLGNIMXfyIuwjBwBa`
+**Worker version:** live — check `/health` (`version` + `git_sha`); don't trust any number written here
 **Account ID:** `37821191a8c1419e055c2c0a30546589`
 **D1 Database ID:** `62ce85d7-0cc1-4832-aa57-d5b09ceaa132`
 
@@ -47,10 +47,17 @@ GET/POST /intel           — people intel (?person_name=, ?intel_type=, ?since=
 GET/POST /knowledge       — tribal knowledge (?category=, ?area=, ?q=, ?since=, ?fields=, ?limit=)
 GET      /stats           — dashboard stats (always cheap — use for counts)
 GET      /export          — full JSON dump (heavy — only /audit uses)
-GET      /health          — returns version string
+GET      /health          — returns version string + git_sha
 GET      /moves           — leadership moves (?since=YYYY-MM-DD, ?category=)
-GET/PATCH /scoreboard     — EHS safety pulse metrics (TRIR, recordables, observations, man-hours) — single row, updated weekly
-GET      /digest/preview  — formatted weekly digest
+GET/PATCH /scoreboard     — EHS safety pulse metrics — single row; every PATCH snapshots into scoreboard_history
+GET/POST /reflections     — weekly reflections (?since=; PATCH/DELETE /reflections/:id)
+GET      /search          — search knowledge+intel+tasks (?q=, ?limit=, ?mode=fts|semantic|hybrid). USE THIS for recall. semantic answers meaning-level questions ("who resists change on the floor"); fts matches words; hybrid does both
+GET      /trends          — weekly time series (?weeks=, default 12): tasks created/completed, capture rates, moves by category, scoreboard history
+GET      /brief           — composite for /morning (one call: stats + open/overdue/blocked + scoreboard + recent intel)
+GET      /pulse           — composite for /status (stats + top overdue + blockers)
+GET      /knowledge/:id/related — traverse knowledge edges (related_ids, backlinks, supersede chain)
+POST     /backup/run      — manual D1 backup to GitHub (Monday 12:00 UTC cron runs the same)
+GET      /digest/preview  — formatted weekly digest (now shows week-over-week deltas)
 POST     /otter/extract   — AI transcript extraction (uses ANTHROPIC_API_KEY)
 ```
 
@@ -72,6 +79,11 @@ POST     /otter/extract   — AI transcript extraction (uses ANTHROPIC_API_KEY)
 - **category:** equipment, process, project-history, incident, vendor, policy, tribal-knowledge, metric, org-context, decision, lesson
 - **area:** steel-fab, copper-fab, warehouse, plant-wide, corporate, environmental, switchboard, data-center, seal-shop, workflow
 
+### Conflict + supersede rules (v3.8.0/v3.9.0)
+- Every knowledge POST returns `conflicts` (live same-subject entries) + `has_conflicts`; every intel POST does the same keyed on person + intel_type. When true, surface both versions and resolve — PATCH the stale entry with `{"superseded_by": <new_id>}`. Never leave two live entries disagreeing.
+- Superseded entries drop out of GET and /search by default; add `?include_superseded=1` only for audits.
+- Knowledge also has `related_ids` (comma-separated links) and `confidence`.
+
 ### Charlie's person_id: 26
 
 ### Dashboard
@@ -86,6 +98,8 @@ Where data lives. When facts disagree, the authoritative source wins.
 - **Project Instructions** (this document) — authoritative for stable rules: communication style, infra IDs, key people roster, priorities, targets.
 - **`kb-lessons.md` file** (if present in project) — active failure log. The only file ever appended to.
 - **Skill files** (`skill-*.md`) — invocation logic. Updated when patterns change.
+- **Recall rule:** "what do we know about X / have we dealt with X / who told us about X" → `GET /search?q=X&mode=hybrid` FIRST. Per-endpoint `?q=` LIKE filters are for structured scans only.
+- **Backups:** Monday cron pushes a gzipped export to GitHub `infra/backups/auto/`; nightly d1-backup worker also snapshots to R2. Restore path is tested (`infra/restore.sh` in the EATON repo).
 
 If a number appears in Project Instructions (TRIR, WSRA count, etc.) it should be a *target* or *stable fact*, not a snapshot. Snapshots come from `/stats`.
 
