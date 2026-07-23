@@ -170,7 +170,7 @@ If a number appears in CLAUDE.md (TRIR, WSRA count, etc.) it should be a *target
 
 **Recall rule (v3.8.0+):** when Charlie asks "what do we know about X" / "have we dealt with X before" / "who told us about X", hit `GET /search?q=X` first — it's FTS across knowledge, intel, AND tasks, ranked with snippets. The per-endpoint `?q=` LIKE filters only match literal substrings; /search matches terms anywhere in any order. LIKE filters are for structured drift scans, /search is for memory.
 
-**Backup (v3.8.0+):** Monday 12:00 UTC cron pushes a gzipped full D1 export to `infra/backups/auto/` on GitHub main (needs the `GITHUB_BACKUP_TOKEN` Worker secret). Manual: `POST /backup/run`. /audit verifies the cadence. Restore: gunzip the newest file — it's the same JSON as `/export`.
+**Backup (v3.8.0+):** Monday 12:00 UTC cron pushes a gzipped full D1 export to `infra/backups/auto/` on GitHub main (needs the `GITHUB_BACKUP_TOKEN` Worker secret). Manual: `POST /backup/run`. /audit verifies the cadence. Restore: `infra/restore.sh <backup> <fresh-db> --create` — schema, data, FTS rebuild, count verification (tested 2026-07-22; refuses prod without `--force-prod`).
 
 ## Working Rules
 

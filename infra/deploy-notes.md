@@ -87,7 +87,14 @@ Use only if wrangler auth is broken. **PUT-based deploys WIPE secrets** — re-s
 
 ### Cron
 - `0 14 * * 5` — Friday 14:00 UTC (10:00 AM ET during EDT) — builds and emails weekly digest
-- `0 12 * * 1` — Monday 12:00 UTC (v3.8.0+) — gzipped full D1 export pushed to `infra/backups/auto/d1-export-YYYY-MM-DD.json.gz` on GitHub main (~150-250KB/week). Manual trigger: `eaton /backup/run -X POST`. Restore: `gunzip` the newest file → same JSON as `/export`.
+- `0 12 * * 1` — Monday 12:00 UTC (v3.8.0+) — gzipped full D1 export pushed to `infra/backups/auto/d1-export-YYYY-MM-DD.json.gz` on GitHub main (~150-250KB/week). Manual trigger: `eaton /backup/run -X POST`.
+
+### Restore (tested 2026-07-22 against the first production backup)
+```bash
+cd infra
+./restore.sh backups/auto/d1-export-YYYY-MM-DD.json.gz eaton-ehs-restore-test --create
+```
+Builds the schema (`infra/schema.sql`), loads every table, rebuilds the FTS index, and verifies row counts against the backup — refusing to touch `eaton-ehs-dashboard` unless `--force-prod` is passed. To cut over to a restored DB: change `database_id` in `wrangler.toml` to the new database's ID and redeploy. Backups from v3.8.1+ include `scoreboard` + `scoreboard_history` (earlier ones don't — that gap is what the first drill caught). Run a drill against a fresh test DB ~quarterly, then `npx wrangler d1 delete eaton-ehs-restore-test`.
 
 ### v3.8.0 rollout checklist (one-time)
 1. **Deploy the worker** (wrangler pattern above — sets both crons from wrangler.toml).

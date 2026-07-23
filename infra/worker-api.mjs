@@ -6,6 +6,8 @@
 // Vars: GIT_SHA (set on deploy so /health reports the live commit — see infra/deploy-notes.md)
 // Crons: "0 14 * * 5" (Friday 10am ET — weekly digest), "0 12 * * 1" (Monday — D1 backup to GitHub)
 // Changelog:
+//   v3.8.1 (2026-07-22) — /export (and therefore backups) now includes scoreboard +
+//     scoreboard_history; found missing during the first restore drill (infra/restore.sh)
 //   v3.8.0 (2026-07-22) — FTS5 /search across knowledge/intel/tasks, weekly gzip D1 backup to
 //     GitHub (+ POST /backup/run), /trends time series (+ scoreboard_history snapshots),
 //     knowledge edges (related_ids/superseded_by/confidence) + write-time conflict flagging.
@@ -15,7 +17,7 @@
 //   v3.6.0 (2026-06-03) — weekly digest moved from SendGrid to Resend
 //   v3.5.0 (2026-05-27) — added /scoreboard GET+PATCH for EHS safety pulse metrics
 
-const VERSION = "3.8.0";
+const VERSION = "3.8.1";
 
 // Server-side enum guards. The DB has no enforced CHECK constraints, so this is the
 // only thing standing between a typo and a bad row (see task #389 — status "investigation").
@@ -169,9 +171,19 @@ async function buildExport(db) {
   const reflections = await db.prepare("SELECT * FROM weekly_reflections ORDER BY week_of DESC").all();
   const knowledge = await db.prepare("SELECT * FROM knowledge ORDER BY created_at DESC").all();
   const intel = await db.prepare("SELECT i.*, p.name as linked_person_name FROM people_intel i LEFT JOIN people p ON i.person_id = p.id ORDER BY i.created_at DESC").all();
+  const scoreboard = await db.prepare("SELECT * FROM scoreboard ORDER BY id").all();
+  let scoreboardHistory = [];
+  try {
+    const sh = await db.prepare("SELECT * FROM scoreboard_history ORDER BY snapshot_date").all();
+    scoreboardHistory = sh.results;
+  } catch (e) {
+    if (!isMigrationPending(e)) throw e;
+  }
   return {
     exported_at: new Date().toISOString(),
     version: VERSION,
+    scoreboard: scoreboard.results,
+    scoreboard_history: scoreboardHistory,
     tasks: tasks.results,
     people: people.results,
     templates: templates.results,
