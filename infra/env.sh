@@ -5,7 +5,7 @@
 # (bound as AUTH_TOKEN), NOT the per-Worker API_TOKEN var. Update BOTH the
 # Secrets Store value AND this file to the same string.
 
-export EATON_TOKEN='eatonehs7k3mq9vt2rxdw8fp'
+export EATON_TOKEN='Karwji0lZdieLGNIMXfyIuwjBwBa'
 export EATON_API='https://eaton-ehs-api.cball8475.workers.dev'
 
 # Usage examples:

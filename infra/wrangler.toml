@@ -16,6 +16,16 @@ binding = "AUTH_TOKEN"
 store_id = "80c48360a0e54dd69425da2dfbde21ad"
 secret_name = "EATON_TOKEN"
 
+# Semantic search (v3.9.0+). The Vectorize index must exist BEFORE deploying
+# with these bindings or the deploy fails:
+#   npx wrangler vectorize create eaton-memory --dimensions=768 --metric=cosine
+[ai]
+binding = "AI"
+
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "eaton-memory"
+
 [triggers]
 # Friday 14:00 UTC — weekly digest email. Monday 12:00 UTC — D1 backup to GitHub.
 crons = ["0 14 * * 5", "0 12 * * 1"]

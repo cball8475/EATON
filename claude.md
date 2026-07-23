@@ -50,7 +50,8 @@ GET      /health          — returns version string
 GET      /moves           — leadership moves (?since=YYYY-MM-DD, ?category=)
 GET/PATCH /scoreboard     — EHS safety pulse metrics (TRIR, recordables, observations, man-hours) — single row; every PATCH snapshots into scoreboard_history
 GET/POST /reflections     — weekly reflections (?since=; PATCH/DELETE /reflections/:id)
-GET      /search          — FTS5 full-text search across knowledge + intel + tasks (?q=, ?limit=) — ranked, snippeted. USE THIS for recall, not ?q= LIKE filters
+GET      /search          — search across knowledge + intel + tasks (?q=, ?limit=, ?mode=fts|semantic|hybrid). USE THIS for recall, not ?q= LIKE filters. mode=semantic answers meaning-level questions ("who resists change on the floor") via Vectorize embeddings; fts matches words
+POST     /vectorize/backfill — one-time semantic index build (?offset=; loop until done:true)
 GET      /trends          — weekly time series (?weeks=, default 12): tasks created/completed, knowledge/intel capture, moves by category, scoreboard history
 GET      /brief           — composite for /morning (stats + open/overdue/blocked + scoreboard + recent intel in one call)
 GET      /pulse           — composite for /status (stats + top overdue + blockers)
@@ -76,6 +77,7 @@ POST     /otter/extract   — AI transcript extraction (uses ANTHROPIC_API_KEY)
 - **related_ids** (v3.8.0+): comma-separated knowledge IDs this entry connects to — link decisions to their outcomes, incidents to their lessons. `GET /knowledge/:id/related` traverses both directions.
 - **superseded_by** (v3.8.0+): ID of the entry that replaced this one. Superseded entries drop out of GET /knowledge and /search by default (`?include_superseded=1` to see them). PATCH the old entry instead of deleting — the chain is the audit trail.
 - **conflicts on POST:** every knowledge POST returns `conflicts` (live same-subject entries) + `has_conflicts`. When true, surface it and resolve — supersede the loser or keep both deliberately.
+- **Intel parity (v3.9.0+):** `people_intel` has the same `superseded_by`/`confidence` columns and the same POST conflict flagging (keyed on person + intel_type). Superseded intel drops out of reads and search; `?include_superseded=1` for audits. Resolve intel conflicts the same way: PATCH the stale entry with `{"superseded_by": <new_id>}`.
 
 ### Dashboard
 - **URL:** https://eaton-ehs-cmd.netlify.app

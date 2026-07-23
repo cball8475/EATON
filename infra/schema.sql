@@ -110,6 +110,8 @@ CREATE TABLE IF NOT EXISTS people_intel (
   content TEXT NOT NULL,
   source_label TEXT,
   source_meeting_id TEXT,
+  superseded_by INTEGER,
+  confidence TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
 

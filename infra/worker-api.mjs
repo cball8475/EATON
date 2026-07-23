@@ -6,6 +6,11 @@
 // Vars: GIT_SHA (set on deploy so /health reports the live commit — see infra/deploy-notes.md)
 // Crons: "0 14 * * 5" (Friday 10am ET — weekly digest), "0 12 * * 1" (Monday — D1 backup to GitHub)
 // Changelog:
+//   v3.9.0 (2026-07-23) — intel supersede parity (superseded_by/confidence + write-time
+//     conflict flagging on POST /intel), weekly digest week-over-week deltas, semantic
+//     search via Vectorize + Workers AI (/search?mode=semantic|hybrid, /vectorize/backfill).
+//     Needs infra/migrations/2026-07-23-v3.9.0.sql and the eaton-memory Vectorize index;
+//     degrades gracefully without either.
 //   v3.8.1 (2026-07-22) — /export (and therefore backups) now includes scoreboard +
 //     scoreboard_history; found missing during the first restore drill (infra/restore.sh)
 //   v3.8.0 (2026-07-22) — FTS5 /search across knowledge/intel/tasks, weekly gzip D1 backup to
@@ -17,7 +22,7 @@
 //   v3.6.0 (2026-06-03) — weekly digest moved from SendGrid to Resend
 //   v3.5.0 (2026-05-27) — added /scoreboard GET+PATCH for EHS safety pulse metrics
 
-const VERSION = "3.8.1";
+const VERSION = "3.9.0";
 
 // Server-side enum guards. The DB has no enforced CHECK constraints, so this is the
 // only thing standing between a typo and a bad row (see task #389 — status "investigation").
@@ -160,6 +165,65 @@ function ftsMatchExpr(q) {
 // True when the error means the v3.8.0 migration hasn't been applied yet.
 function isMigrationPending(e) {
   return /no such (table|column)/i.test(e?.message || "");
+}
+
+// ── SEMANTIC LAYER (Vectorize + Workers AI) ──
+// Optional: everything checks vecEnabled() and no request ever fails because
+// embedding did. Vector ids are "knowledge:123" / "intel:45" so one index
+// serves both tables. Index: eaton-memory (768 dims, cosine — bge-base-en-v1.5).
+const EMBED_MODEL = "@cf/baai/bge-base-en-v1.5";
+
+function vecEnabled(env) {
+  return !!(env.AI && env.VECTORIZE);
+}
+
+function knowledgeEmbedText(row) {
+  return `${row.subject}\n${row.detail}${row.people_involved ? "\npeople: " + row.people_involved : ""}`;
+}
+
+function intelEmbedText(row) {
+  return `${row.person_name} (${row.intel_type}): ${row.content}`;
+}
+
+async function embedTexts(env, texts) {
+  const res = await env.AI.run(EMBED_MODEL, { text: texts });
+  return res.data;
+}
+
+// Fire-and-forget from request handlers via ctx.waitUntil — never throws upward.
+async function upsertVector(env, kind, id, text) {
+  if (!vecEnabled(env)) return;
+  try {
+    const [values] = await embedTexts(env, [text]);
+    await env.VECTORIZE.upsert([{ id: `${kind}:${id}`, values, metadata: { kind, ref_id: Number(id) } }]);
+  } catch (e) {
+    console.error(`vector upsert failed (${kind}:${id}):`, e.message);
+  }
+}
+
+async function deleteVector(env, kind, id) {
+  if (!vecEnabled(env)) return;
+  try {
+    await env.VECTORIZE.deleteByIds([`${kind}:${id}`]);
+  } catch (e) {
+    console.error(`vector delete failed (${kind}:${id}):`, e.message);
+  }
+}
+
+// Query the index and hydrate matches from D1. Excludes superseded rows.
+async function semanticSearch(env, db, q, topK) {
+  const [values] = await embedTexts(env, [q]);
+  const res = await env.VECTORIZE.query(values, { topK, returnMetadata: "indexed" });
+  const out = [];
+  for (const m of res.matches || []) {
+    const [kind, id] = m.id.split(":");
+    const table = kind === "knowledge" ? "knowledge" : kind === "intel" ? "people_intel" : null;
+    if (!table) continue;
+    const row = await db.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(id).first();
+    // Loose != null drops superseded rows and tolerates the column not existing yet.
+    if (row && row.superseded_by == null) out.push({ kind, score: m.score, ...row });
+  }
+  return out;
 }
 
 // ── EXPORT (shared by GET /export and the weekly backup) ──
@@ -306,6 +370,28 @@ async function buildWeeklyDigest(db) {
     "SELECT description, category, date FROM leadership_moves WHERE date >= ? ORDER BY date DESC"
   ).bind(weekAgo).all();
 
+  // Prior-week counts (14d→7d window) so the digest can show direction, not
+  // just this week's number — trajectory is what the succession story reads on.
+  const twoWeeksAgo = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const priorCompleted = await db.prepare(
+    "SELECT COUNT(*) as c FROM tasks WHERE status = 'done' AND completed_at >= ? AND completed_at < ?"
+  ).bind(twoWeeksAgo, weekAgo).first();
+  const priorMoves = await db.prepare(
+    "SELECT COUNT(*) as c FROM leadership_moves WHERE date >= ? AND date < ?"
+  ).bind(twoWeeksAgo, weekAgo).first();
+  const knowledgeWeek = await db.prepare(
+    "SELECT COUNT(*) as c FROM knowledge WHERE created_at >= ?"
+  ).bind(weekAgo).first();
+  const priorKnowledge = await db.prepare(
+    "SELECT COUNT(*) as c FROM knowledge WHERE created_at >= ? AND created_at < ?"
+  ).bind(twoWeeksAgo, weekAgo).first();
+  const intelWeek = await db.prepare(
+    "SELECT COUNT(*) as c FROM people_intel WHERE created_at >= ?"
+  ).bind(weekAgo).first();
+  const priorIntel = await db.prepare(
+    "SELECT COUNT(*) as c FROM people_intel WHERE created_at >= ? AND created_at < ?"
+  ).bind(twoWeeksAgo, weekAgo).first();
+
   return {
     generated_at: now.toISOString(),
     week_ending: today,
@@ -316,8 +402,26 @@ async function buildWeeklyDigest(db) {
     by_period: byPeriod.results,
     by_priority: byPriority.results,
     total_open: totalOpen.c,
-    leadership_moves: moves.results
+    leadership_moves: moves.results,
+    prior_week: {
+      completed: priorCompleted.c,
+      moves: priorMoves.c,
+      knowledge: priorKnowledge.c,
+      intel: priorIntel.c
+    },
+    this_week: {
+      knowledge: knowledgeWeek.c,
+      intel: intelWeek.c
+    }
   };
+}
+
+// "12 (↑3 vs last wk)" / "(↓2)" / "(= last wk)" — plain text, email-safe.
+function delta(current, prior) {
+  if (prior === undefined || prior === null) return "";
+  const d = current - prior;
+  if (d === 0) return " (= last wk)";
+  return ` (${d > 0 ? "↑" : "↓"}${Math.abs(d)} vs last wk)`;
 }
 
 function formatDigestEmail(data) {
@@ -326,7 +430,7 @@ function formatDigestEmail(data) {
   lines.push(`Generated: ${new Date(data.generated_at).toLocaleString("en-US", { timeZone: "America/New_York" })}`);
   lines.push("");
 
-  lines.push(`── COMPLETED THIS WEEK (${data.completed.length}) ──`);
+  lines.push(`── COMPLETED THIS WEEK (${data.completed.length}${delta(data.completed.length, data.prior_week?.completed)}) ──`);
   if (data.completed.length === 0) {
     lines.push("  No tasks closed this week.");
   } else {
@@ -365,6 +469,10 @@ function formatDigestEmail(data) {
 
   lines.push(`── SNAPSHOT ──`);
   lines.push(`  Open tasks: ${data.total_open}`);
+  if (data.this_week) {
+    lines.push(`  Knowledge captured: ${data.this_week.knowledge}${delta(data.this_week.knowledge, data.prior_week?.knowledge)}`);
+    lines.push(`  Intel captured: ${data.this_week.intel}${delta(data.this_week.intel, data.prior_week?.intel)}`);
+  }
   for (const p of data.by_priority) {
     lines.push(`    ${p.priority}: ${p.c}`);
   }
@@ -377,7 +485,7 @@ function formatDigestEmail(data) {
   lines.push("");
 
   if (data.leadership_moves.length > 0) {
-    lines.push(`── LEADERSHIP MOVES THIS WEEK (${data.leadership_moves.length}) ──`);
+    lines.push(`── LEADERSHIP MOVES THIS WEEK (${data.leadership_moves.length}${delta(data.leadership_moves.length, data.prior_week?.moves)}) ──`);
     for (const m of data.leadership_moves) {
       lines.push(`  ★ [${m.category}] ${m.description}`);
     }
@@ -446,7 +554,7 @@ export default {
     }
   },
 
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
 
     const url = new URL(request.url);
@@ -690,11 +798,31 @@ export default {
       }
 
       // ── SEARCH (FTS5 across knowledge, intel, tasks — ranked, snippeted) ──
+      // ?mode=fts (default) | semantic | hybrid. Semantic needs the Vectorize
+      // index + backfill; without them it reports semantic_available: false.
       if (path === "/search" && method === "GET") {
         const q = url.searchParams.get("q");
         if (!q || !q.trim()) return err("q is required");
+        const mode = url.searchParams.get("mode") || "fts";
         const match = ftsMatchExpr(q);
         const n = Math.min(Math.max(parseInt(url.searchParams.get("limit"), 10) || 8, 1), 25);
+        let semanticExtra = null;
+        if (mode === "semantic" || mode === "hybrid") {
+          let semantic = [];
+          let semanticAvailable = vecEnabled(env);
+          if (semanticAvailable) {
+            try {
+              semantic = await semanticSearch(env, db, q, n);
+            } catch (e) {
+              console.error("semantic search failed:", e.message);
+              semanticAvailable = false;
+            }
+          }
+          if (mode === "semantic") {
+            return json({ query: q, mode, semantic_available: semanticAvailable, semantic, count: semantic.length });
+          }
+          semanticExtra = { semantic_available: semanticAvailable, semantic };
+        }
         try {
           const knowledge = await db.prepare(
             `SELECT k.id, k.category, k.area, k.subject, k.created_at, k.superseded_by,
@@ -704,14 +832,28 @@ export default {
              WHERE knowledge_fts MATCH ? AND k.superseded_by IS NULL
              ORDER BY rank LIMIT ?`
           ).bind(match, n).all();
-          const intel = await db.prepare(
-            `SELECT i.id, i.person_name, i.intel_type, i.created_at,
-                    snippet(intel_fts, 1, '>>', '<<', ' … ', 16) as snippet,
-                    bm25(intel_fts) as rank
-             FROM intel_fts JOIN people_intel i ON i.id = intel_fts.rowid
-             WHERE intel_fts MATCH ?
-             ORDER BY rank LIMIT ?`
-          ).bind(match, n).all();
+          let intel;
+          try {
+            intel = await db.prepare(
+              `SELECT i.id, i.person_name, i.intel_type, i.created_at,
+                      snippet(intel_fts, 1, '>>', '<<', ' … ', 16) as snippet,
+                      bm25(intel_fts) as rank
+               FROM intel_fts JOIN people_intel i ON i.id = intel_fts.rowid
+               WHERE intel_fts MATCH ? AND i.superseded_by IS NULL
+               ORDER BY rank LIMIT ?`
+            ).bind(match, n).all();
+          } catch (e) {
+            if (!isMigrationPending(e)) throw e;
+            // pre-v3.9 migration: people_intel has no superseded_by yet
+            intel = await db.prepare(
+              `SELECT i.id, i.person_name, i.intel_type, i.created_at,
+                      snippet(intel_fts, 1, '>>', '<<', ' … ', 16) as snippet,
+                      bm25(intel_fts) as rank
+               FROM intel_fts JOIN people_intel i ON i.id = intel_fts.rowid
+               WHERE intel_fts MATCH ?
+               ORDER BY rank LIMIT ?`
+            ).bind(match, n).all();
+          }
           const tasks = await db.prepare(
             `SELECT t.id, t.title, t.status, t.priority, t.due_date, t.created_at,
                     snippet(tasks_fts, 1, '>>', '<<', ' … ', 16) as snippet,
@@ -722,15 +864,53 @@ export default {
           ).bind(match, n).all();
           return json({
             query: q,
+            mode,
             knowledge: knowledge.results,
             intel: intel.results,
             tasks: tasks.results,
-            counts: { knowledge: knowledge.results.length, intel: intel.results.length, tasks: tasks.results.length }
+            counts: { knowledge: knowledge.results.length, intel: intel.results.length, tasks: tasks.results.length },
+            ...(semanticExtra || {})
           });
         } catch (e) {
           if (isMigrationPending(e)) return err("FTS index not built — run infra/migrations/2026-07-22-v3.8.0.sql", 503);
           throw e;
         }
+      }
+
+      // ── VECTORIZE BACKFILL (one-time after index creation; resumable) ──
+      // POST /vectorize/backfill?offset=0 — embeds live knowledge + intel in
+      // batches. Re-run with the returned next_offset until done: true.
+      if (path === "/vectorize/backfill" && method === "POST") {
+        if (!vecEnabled(env)) return err("Vectorize/AI bindings not configured — create the eaton-memory index and redeploy", 503);
+        const offset = Math.max(parseInt(url.searchParams.get("offset"), 10) || 0, 0);
+        const BATCH = 40; // rows per call — keeps well under subrequest and body limits
+        const items = [];
+        let know = [];
+        try {
+          const k = await db.prepare("SELECT id, subject, detail, people_involved FROM knowledge WHERE superseded_by IS NULL ORDER BY id").all();
+          know = k.results;
+        } catch (e) {
+          if (!isMigrationPending(e)) throw e;
+          const k = await db.prepare("SELECT id, subject, detail, people_involved FROM knowledge ORDER BY id").all();
+          know = k.results;
+        }
+        for (const r of know) items.push({ id: `knowledge:${r.id}`, kind: "knowledge", ref_id: r.id, text: knowledgeEmbedText(r) });
+        const i = await db.prepare("SELECT id, person_name, intel_type, content FROM people_intel ORDER BY id").all();
+        for (const r of i.results) items.push({ id: `intel:${r.id}`, kind: "intel", ref_id: r.id, text: intelEmbedText(r) });
+        const slice = items.slice(offset, offset + BATCH);
+        if (slice.length) {
+          const vectors = await embedTexts(env, slice.map(s => s.text));
+          await env.VECTORIZE.upsert(slice.map((s, idx) => ({
+            id: s.id, values: vectors[idx], metadata: { kind: s.kind, ref_id: s.ref_id }
+          })));
+        }
+        const nextOffset = offset + slice.length;
+        return json({
+          embedded: slice.length,
+          total: items.length,
+          next_offset: nextOffset,
+          done: nextOffset >= items.length
+        });
       }
 
       // ── TRENDS (weekly time series — the trajectory view /weekly and Laura care about) ──
@@ -915,6 +1095,7 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
         const since = url.searchParams.get("since");
         const fields = url.searchParams.get("fields");
         const limit = url.searchParams.get("limit");
+        const includeSupersededIntel = url.searchParams.get("include_superseded") === "1";
         let sql = "SELECT i.*, p.name as linked_person_name FROM people_intel i LEFT JOIN people p ON i.person_id = p.id";
         const params = [];
         const conditions = [];
@@ -923,10 +1104,18 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
         if (intelType) { conditions.push("i.intel_type = ?"); params.push(intelType); }
         if (search) { conditions.push("i.content LIKE ?"); params.push(`%${search}%`); }
         if (since) { conditions.push("i.created_at >= ?"); params.push(since); }
-        if (conditions.length) sql += " WHERE " + conditions.join(" AND ");
-        sql += " ORDER BY i.created_at DESC";
-        sql += limitClause(limit);
-        const { results } = await db.prepare(sql).bind(...params).all();
+        if (!includeSupersededIntel) conditions.push("i.superseded_by IS NULL");
+        let results;
+        try {
+          let q = sql + (conditions.length ? " WHERE " + conditions.join(" AND ") : "") + " ORDER BY i.created_at DESC" + limitClause(limit);
+          ({ results } = await db.prepare(q).bind(...params).all());
+        } catch (e) {
+          if (!isMigrationPending(e)) throw e;
+          // pre-v3.9 migration: no superseded_by column — rerun without that filter
+          const legacy = conditions.filter(c => c !== "i.superseded_by IS NULL");
+          let q = sql + (legacy.length ? " WHERE " + legacy.join(" AND ") : "") + " ORDER BY i.created_at DESC" + limitClause(limit);
+          ({ results } = await db.prepare(q).bind(...params).all());
+        }
         return json({ intel: projectFields(results, fields), count: results.length });
       }
 
@@ -944,22 +1133,48 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
           if (matches.results.length === 1) resolvedPersonId = matches.results[0].id;
           else needsLink = true;
         }
-        const result = await db.prepare(
-          `INSERT INTO people_intel (person_id, person_name, intel_type, content, source_label, source_meeting_id)
-           VALUES (?, ?, ?, ?, ?, ?)`
-        ).bind(
-          resolvedPersonId, body.person_name,
-          body.intel_type, body.content,
-          body.source_label || null, body.source_meeting_id || null
-        ).run();
+        // Write-time conflict check — mirror of the knowledge one: live entries for
+        // the same person + intel_type surface BEFORE this lands. Advisory only.
+        let intelConflicts = [];
+        try {
+          const existing = await db.prepare(
+            "SELECT id, person_name, intel_type, content, created_at FROM people_intel WHERE person_name = ? COLLATE NOCASE AND intel_type = ? AND superseded_by IS NULL ORDER BY created_at DESC LIMIT 5"
+          ).bind(body.person_name, body.intel_type).all();
+          intelConflicts = existing.results;
+        } catch (e) {
+          if (!isMigrationPending(e)) throw e;
+        }
+        let result;
+        try {
+          result = await db.prepare(
+            `INSERT INTO people_intel (person_id, person_name, intel_type, content, source_label, source_meeting_id, confidence)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`
+          ).bind(
+            resolvedPersonId, body.person_name,
+            body.intel_type, body.content,
+            body.source_label || null, body.source_meeting_id || null,
+            body.confidence || null
+          ).run();
+        } catch (e) {
+          if (!isMigrationPending(e)) throw e;
+          result = await db.prepare(
+            `INSERT INTO people_intel (person_id, person_name, intel_type, content, source_label, source_meeting_id)
+             VALUES (?, ?, ?, ?, ?, ?)`
+          ).bind(
+            resolvedPersonId, body.person_name,
+            body.intel_type, body.content,
+            body.source_label || null, body.source_meeting_id || null
+          ).run();
+        }
         const created = await db.prepare("SELECT i.*, p.name as linked_person_name FROM people_intel i LEFT JOIN people p ON i.person_id = p.id WHERE i.id = ?").bind(result.meta.last_row_id).first();
-        return json({ ...created, needs_link: needsLink }, 201);
+        ctx.waitUntil(upsertVector(env, "intel", created.id, intelEmbedText(created)));
+        return json({ ...created, needs_link: needsLink, conflicts: intelConflicts, has_conflicts: intelConflicts.length > 0 }, 201);
       }
 
       if (matchPath(path, "/intel/:id") && method === "PATCH") {
         const [id] = matchPath(path, "/intel/:id");
         const body = await request.json();
-        const allowed = ["person_id","person_name","intel_type","content","source_label","source_meeting_id"];
+        const allowed = ["person_id","person_name","intel_type","content","source_label","source_meeting_id","superseded_by","confidence"];
         const sets = [];
         const vals = [];
         for (const key of allowed) {
@@ -969,12 +1184,15 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
         vals.push(id);
         await db.prepare(`UPDATE people_intel SET ${sets.join(", ")} WHERE id = ?`).bind(...vals).run();
         const updated = await db.prepare("SELECT i.*, p.name as linked_person_name FROM people_intel i LEFT JOIN people p ON i.person_id = p.id WHERE i.id = ?").bind(id).first();
+        if (updated.superseded_by != null) ctx.waitUntil(deleteVector(env, "intel", id));
+        else ctx.waitUntil(upsertVector(env, "intel", id, intelEmbedText(updated)));
         return json(updated);
       }
 
       if (matchPath(path, "/intel/:id") && method === "DELETE") {
         const [id] = matchPath(path, "/intel/:id");
         await db.prepare("DELETE FROM people_intel WHERE id = ?").bind(id).run();
+        ctx.waitUntil(deleteVector(env, "intel", id));
         return json({ deleted: true });
       }
 
@@ -1049,6 +1267,7 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
           ).run();
         }
         const created = await db.prepare("SELECT * FROM knowledge WHERE id = ?").bind(result.meta.last_row_id).first();
+        ctx.waitUntil(upsertVector(env, "knowledge", created.id, knowledgeEmbedText(created)));
         return json({ ...created, conflicts, has_conflicts: conflicts.length > 0 }, 201);
       }
 
@@ -1094,12 +1313,15 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
         vals.push(id);
         await db.prepare(`UPDATE knowledge SET ${sets.join(", ")} WHERE id = ?`).bind(...vals).run();
         const updated = await db.prepare("SELECT * FROM knowledge WHERE id = ?").bind(id).first();
+        if (updated.superseded_by != null) ctx.waitUntil(deleteVector(env, "knowledge", id));
+        else ctx.waitUntil(upsertVector(env, "knowledge", id, knowledgeEmbedText(updated)));
         return json(updated);
       }
 
       if (matchPath(path, "/knowledge/:id") && method === "DELETE") {
         const [id] = matchPath(path, "/knowledge/:id");
         await db.prepare("DELETE FROM knowledge WHERE id = ?").bind(id).run();
+        ctx.waitUntil(deleteVector(env, "knowledge", id));
         return json({ deleted: true });
       }
 

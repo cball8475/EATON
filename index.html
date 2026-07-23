@@ -288,6 +288,7 @@
     <button class="tab active" onclick="switchTab('board')">Board</button>
     <button class="tab" onclick="switchTab('people')">People</button>
     <button class="tab" onclick="switchTab('metrics')">EHS Metrics</button>
+    <button class="tab" onclick="switchTab('memory')">Memory</button>
     <button class="tab" onclick="switchTab('otter')">Otter Extract</button>
   </div>
 
@@ -370,9 +371,25 @@
   <!-- Metrics Panel -->
   <div class="panel" id="panel-metrics">
     <div class="metrics-grid" id="metrics-grid"></div>
+    <div style="margin-top:20px;"><div class="metric-section-title">12-Week Trends</div></div>
+    <div class="metrics-grid" id="trends-grid"><div style="color:var(--text3);font-size:12px;">Loading trends…</div></div>
   </div>
 
   <!-- Otter Panel -->
+  <!-- MEMORY (FTS + semantic search across knowledge, intel, tasks) -->
+  <div class="panel" id="panel-memory">
+    <div class="filters">
+      <input type="text" id="memory-q" placeholder="Search memory — try 'who resists change on the floor'" onkeydown="if(event.key==='Enter')runMemorySearch()" style="flex:1;min-width:260px;">
+      <select id="memory-mode">
+        <option value="hybrid">Hybrid</option>
+        <option value="fts">Exact (FTS)</option>
+        <option value="semantic">Semantic</option>
+      </select>
+      <button class="btn btn-primary" onclick="runMemorySearch()">Search</button>
+    </div>
+    <div id="memory-results" style="font-size:13px;color:var(--text2);">Search knowledge, people intel, and tasks in one shot. Exact matches words; Semantic matches meaning.</div>
+  </div>
+
   <div class="panel" id="panel-otter">
     <div class="otter-area">
       <p style="font-size:12px;color:var(--text3);margin-bottom:8px;">Paste an Otter.ai transcript below. AI will extract action items as tasks and leadership moves.</p>
@@ -499,7 +516,13 @@
 <script>
 // ── Config ──
 const API = "https://eaton-ehs-api.cball8475.workers.dev";
-const TOKEN = "9Cls9a9wbMexRkwkvy0dpmxPfS4zLM7OFepPYCu-VDA";
+// Token is never shipped in this file. Prompted once, kept in this browser's
+// localStorage. After a rotation: localStorage.removeItem('eaton_token') + reload.
+let TOKEN = localStorage.getItem("eaton_token") || "";
+if (!TOKEN) {
+  TOKEN = (prompt("Eaton EHS API token (stored only in this browser):") || "").trim();
+  if (TOKEN) localStorage.setItem("eaton_token", TOKEN);
+}
 const HEADERS = { "Content-Type": "application/json", "Authorization": `Bearer ${TOKEN}` };
 
 // ── State ──
@@ -517,6 +540,11 @@ async function api(path, method = "GET", body) {
   const opts = { method, headers: HEADERS };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(API + path, opts);
+  if (res.status === 401) {
+    localStorage.removeItem("eaton_token");
+    alert("API token rejected — reload the page and enter a valid token.");
+    throw new Error("unauthorized");
+  }
   return res.json();
 }
 
@@ -780,6 +808,7 @@ function switchTab(id) {
   document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
   event.target.classList.add("active");
   document.getElementById("panel-" + id).classList.add("active");
+  if (id === "metrics") loadTrends();
 }
 
 // ── Populate Filters ──
@@ -1462,6 +1491,101 @@ async function addMove(i) {
 document.getElementById("task-modal").addEventListener("click", (e) => {
   if (e.target === document.getElementById("task-modal")) closeModal();
 });
+
+// ── Memory search (worker /search, v3.8+) ──
+function escq(s) { return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+function memoryHit(title, sub, snippet) {
+  return `<div style="padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;margin-bottom:8px;">
+    <div style="font-weight:600;color:var(--text);">${title}</div>
+    <div style="font-size:11px;color:var(--text3);margin:2px 0 4px;">${sub}</div>
+    ${snippet ? `<div style="color:var(--text2);">${snippet}</div>` : ""}
+  </div>`;
+}
+
+async function runMemorySearch() {
+  const q = document.getElementById("memory-q").value.trim();
+  const mode = document.getElementById("memory-mode").value;
+  const out = document.getElementById("memory-results");
+  if (!q) return;
+  out.innerHTML = '<span style="color:var(--text3);">Searching…</span>';
+  try {
+    const r = await api(`/search?q=${encodeURIComponent(q)}&mode=${mode}&limit=8`);
+    let h = "";
+    const mark = s => escq(s).replace(/&gt;&gt;/g, "<mark>").replace(/&lt;&lt;/g, "</mark>");
+    if (r.semantic?.length) {
+      h += '<div class="metric-section-title">Semantic matches</div>';
+      for (const m of r.semantic) {
+        if (m.kind === "knowledge") h += memoryHit(escq(m.subject), `knowledge · ${escq(m.category)} · ${escq(m.area)} · score ${m.score?.toFixed(3)}`, escq((m.detail || "").slice(0, 220)));
+        else h += memoryHit(escq(m.person_name), `intel · ${escq(m.intel_type)} · score ${m.score?.toFixed(3)}`, escq((m.content || "").slice(0, 220)));
+      }
+    } else if ((mode === "semantic" || mode === "hybrid") && r.semantic_available === false) {
+      h += '<div style="color:var(--text3);font-size:12px;margin-bottom:8px;">Semantic index not available yet — showing exact matches only.</div>';
+    }
+    if (r.knowledge?.length) {
+      h += '<div class="metric-section-title">Knowledge</div>';
+      for (const k of r.knowledge) h += memoryHit(escq(k.subject), `${escq(k.category)} · ${escq(k.area)} · ${escq((k.created_at || "").slice(0,10))}`, mark(k.snippet));
+    }
+    if (r.intel?.length) {
+      h += '<div class="metric-section-title">People intel</div>';
+      for (const i of r.intel) h += memoryHit(escq(i.person_name), `${escq(i.intel_type)} · ${escq((i.created_at || "").slice(0,10))}`, mark(i.snippet));
+    }
+    if (r.tasks?.length) {
+      h += '<div class="metric-section-title">Tasks</div>';
+      for (const t of r.tasks) h += memoryHit(escq(t.title), `${escq(t.status)} · ${escq(t.priority)}${t.due_date ? " · due " + escq(t.due_date) : ""}`, mark(t.snippet));
+    }
+    out.innerHTML = h || '<span style="color:var(--text3);">No matches.</span>';
+  } catch (e) {
+    out.innerHTML = `<span style="color:var(--red,#e5534b);">Search failed: ${escq(e.message)}</span>`;
+  }
+}
+
+// ── Trends sparklines (worker /trends, v3.8+) ──
+let trendsLoaded = false;
+
+function sparkline(values, color) {
+  if (!values || values.length < 2) return '<div style="color:var(--text3);font-size:11px;height:30px;">not enough data yet</div>';
+  const w = 140, h = 30;
+  const min = Math.min(...values), max = Math.max(...values), span = (max - min) || 1;
+  const pts = values.map((v, i) => `${(i / (values.length - 1) * w).toFixed(1)},${(h - 3 - (v - min) / span * (h - 6)).toFixed(1)}`).join(" ");
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block;"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5"/><circle r="2" fill="${color}" cx="${w}" cy="${(h - 3 - (values[values.length-1] - min) / span * (h - 6)).toFixed(1)}"/></svg>`;
+}
+
+function weekSeries(rows) {
+  return (rows || []).map(r => r.c);
+}
+
+async function loadTrends() {
+  if (trendsLoaded) return;
+  trendsLoaded = true;
+  const grid = document.getElementById("trends-grid");
+  try {
+    const t = await api("/trends?weeks=12");
+    const trirVals = (t.scoreboard_history || []).map(r => r.trir).filter(v => v != null);
+    const obsVals = (t.scoreboard_history || []).map(r => r.observations_month).filter(v => v != null);
+    const movesByWeek = {};
+    for (const m of t.moves_by_week || []) movesByWeek[m.week] = (movesByWeek[m.week] || 0) + m.c;
+    const moveVals = Object.keys(movesByWeek).sort().map(k => movesByWeek[k]);
+    const knowVals = weekSeries(t.knowledge_added), intelVals = weekSeries(t.intel_added);
+    const captureVals = knowVals.length >= intelVals.length
+      ? knowVals.map((v, i) => v + (intelVals[i] || 0))
+      : intelVals.map((v, i) => v + (knowVals[i] || 0));
+    const card = (title, vals, color, latestLabel) => `
+      <div class="metric-card">
+        <div class="metric-title">${title}</div>
+        ${sparkline(vals, color)}
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">${latestLabel}</div>
+      </div>`;
+    grid.innerHTML =
+      card("TRIR trend", trirVals, "#e5534b", trirVals.length ? "latest: " + trirVals[trirVals.length - 1] : "updates as scoreboard is patched weekly") +
+      card("Observations / month", obsVals, "#4a9eff", obsVals.length ? "latest: " + obsVals[obsVals.length - 1] : "updates as scoreboard is patched weekly") +
+      card("Tasks closed / week", weekSeries(t.tasks_completed), "#3fb950", "last 12 weeks") +
+      card("Knowledge + intel captured / week", captureVals, "#a371f7", "last 12 weeks") +
+      card("Leadership moves / week", moveVals, "#d29922", "last 12 weeks");
+  } catch (e) {
+    grid.innerHTML = `<div style="color:var(--text3);font-size:12px;">Trends unavailable: ${escq(e.message)}</div>`;
+  }
+}
 
 // ── Boot ──
 refreshAll();
