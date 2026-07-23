@@ -32,7 +32,7 @@ This is the ONLY command that should ever fetch `/knowledge` and `/intel` full b
 
 ## Step 2: Semantic checks
 **Knowledge contradictions** — same `subject`, conflicting `detail`, where NEITHER row is superseded. Newer presumed correct; propose marking the older `superseded_by = <newer id>` (PATCH — keeps the chain auditable instead of deleting). Rows already superseded are resolved, not contradictions. Note: since v3.8.0 `POST /knowledge` returns same-subject conflicts at write time, so anything surfacing here leaked past a capture — check whether the capturing skill ignored the `conflicts` field.
-**Intel conflicts** — same `person_name`, conflicting entries within the same `intel_type`. Newer wins.
+**Intel conflicts** — same `person_name`, conflicting entries within the same `intel_type`, neither superseded. Newer wins — propose `superseded_by` PATCH on the older (v3.9.0+; same pattern as knowledge). POST /intel flags these at write time now, so anything here leaked past a capture. Audit pulls use `?include_superseded=1` to verify chains.
 **Orphaned references** — for every open task with `waiting_on` set, check the name appears in the people list. Also flag tasks with `ai_extracted=true` that have **both** null `source_meeting_id` **and** null `source_label` (truly untraceable). Do NOT flag a task with a `source_label` but null `source_meeting_id` — Otter routinely returns empty meeting IDs, the label preserves provenance.
 **Duplicates** — same `subject`+`area` in knowledge with overlapping `detail`. Same person under multiple name variants ("Gloria" vs "Gloria Carter").
 

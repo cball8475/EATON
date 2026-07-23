@@ -16,7 +16,16 @@
 - Prior deploys using `--no-wait` appeared to succeed but uploaded the wrong filename — always verify with grep before deploying
 - Single-file HTML, no build step
 
-> **Note (2026-06-29):** the Netlify deploy was **public** and shipped the API token in client JS — a full read/write leak. The dashboard is moving to Cloudflare Pages behind Access (below). Once that's live, decommission this Netlify site (or leave it — it no longer carries a token, so it just won't load data).
+> **Note (2026-06-29):** the Netlify deploy was **public** and shipped the API token in client JS — a full read/write leak. ~~The dashboard is moving to Cloudflare Pages behind Access (below).~~
+> **Update (2026-07-23):** the leak persisted with the LIVE token until today. Fixed: `index.html` now prompts once and stores the token in localStorage — no secret in the file. The exposed token was rotated (see env.sh). The Cloudflare Pages + Access move below remains the better end-state (defense in depth) but is optional now.
+
+### Dashboard deploy (Netlify, current)
+```bash
+mkdir -p /tmp/eaton-dash && cp index.html /tmp/eaton-dash/index.html
+npx -y netlify-cli deploy --prod --dir /tmp/eaton-dash --site 5667ffaa-f8bb-4208-9cba-766fd357f2b8
+# first run opens a browser to authorize, same as wrangler login
+```
+After a token rotation, in the dashboard browser: DevTools console → `localStorage.removeItem('eaton_token')` → reload → enter the new token.
 
 ---
 
@@ -95,6 +104,36 @@ cd infra
 ./restore.sh backups/auto/d1-export-YYYY-MM-DD.json.gz eaton-ehs-restore-test --create
 ```
 Builds the schema (`infra/schema.sql`), loads every table, rebuilds the FTS index, and verifies row counts against the backup — refusing to touch `eaton-ehs-dashboard` unless `--force-prod` is passed. To cut over to a restored DB: change `database_id` in `wrangler.toml` to the new database's ID and redeploy. Backups from v3.8.1+ include `scoreboard` + `scoreboard_history` (earlier ones don't — that gap is what the first drill caught). Run a drill against a fresh test DB ~quarterly, then `npx wrangler d1 delete eaton-ehs-restore-test`.
+
+### v3.9.0 rollout checklist (one-time — includes the token rotation)
+0. **Rotate the leaked API token.** The old bearer token shipped in public dashboard JS for weeks. The new value is already in `infra/env.sh` (pull first). Apply it server-side:
+   - Cloudflare dashboard → Secrets Store → secret `EATON_TOKEN` → update to the value in env.sh
+   - `npx wrangler secret put API_TOKEN` → same value (keeps the fallback in sync)
+   Until this is done the `eaton` helper (running the new env.sh) gets 401s.
+1. **Create the Vectorize index BEFORE deploying** (the wrangler.toml binding fails the deploy if it doesn't exist):
+   ```bash
+   npx wrangler vectorize create eaton-memory --dimensions=768 --metric=cosine
+   ```
+2. **Deploy the worker** (standard pattern with GIT_SHA).
+3. **Run the migration:** `infra/migrations/2026-07-23-v3.9.0.sql` (two ALTERs — run individually if the batch errors).
+4. **Backfill the semantic index** (~724 entries, resumable):
+   ```bash
+   source infra/env.sh
+   eaton "/vectorize/backfill?offset=0" -X POST | jq .
+   # repeat with the returned next_offset until done:true (about 18 calls),
+   # or loop it:
+   O=0; while :; do R=$(eaton "/vectorize/backfill?offset=$O" -X POST); echo "$R"; \
+     [ "$(echo "$R" | jq -r .done)" = "true" ] && break; O=$(echo "$R" | jq -r .next_offset); done
+   ```
+5. **Verify:**
+   ```bash
+   eaton "/search?q=who+resists+change+on+the+floor&mode=semantic" | jq '.semantic[:3]'
+   eaton "/intel?limit=1&fields=id,person_name,superseded_by" | jq .
+   eaton /digest/preview | jq -r .formatted | head -5    # deltas in the header lines
+   ```
+6. **Deploy the fixed dashboard** (see "Dashboard deploy (Netlify, current)" above), open it, enter the new token at the prompt.
+
+New entries embed automatically on POST/PATCH (fire-and-forget — a failed embed never fails the write). Semantic mode reports `semantic_available:false` instead of erroring when the index/bindings are missing.
 
 ### v3.8.0 rollout checklist (one-time)
 1. **Deploy the worker** (wrangler pattern above — sets both crons from wrangler.toml).
