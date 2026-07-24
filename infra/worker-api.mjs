@@ -6,6 +6,8 @@
 // Vars: GIT_SHA (set on deploy so /health reports the live commit — see infra/deploy-notes.md)
 // Crons: "0 14 * * 5" (Friday 10am ET — weekly digest), "0 12 * * 1" (Monday — D1 backup to GitHub)
 // Changelog:
+//   v3.9.2 (2026-07-24) — /otter/extract: inject today's date into the extraction prompt so
+//     relative due dates ("Friday", "August 1st") resolve to the right year
 //   v3.9.1 (2026-07-24) — /otter/extract: replace retired claude-sonnet-4-20250514 (404 from
 //     Anthropic since 2026-06-15) with claude-sonnet-5, and surface Anthropic API errors as
 //     502s instead of returning an empty-but-successful extraction (kb/lessons.md 2026-07-24)
@@ -25,7 +27,7 @@
 //   v3.6.0 (2026-06-03) — weekly digest moved from SendGrid to Resend
 //   v3.5.0 (2026-05-27) — added /scoreboard GET+PATCH for EHS safety pulse metrics
 
-const VERSION = "3.9.1";
+const VERSION = "3.9.2";
 
 // Server-side enum guards. The DB has no enforced CHECK constraints, so this is the
 // only thing standing between a typo and a bad row (see task #389 — status "investigation").
@@ -1053,7 +1055,7 @@ export default {
             // max_tokens stays output-only for this fixed JSON extraction.
             thinking: { type: "disabled" },
             max_tokens: 3000,
-            system: `You are an EHS task extractor. Given a meeting transcript, extract action items and tasks. Return ONLY valid JSON with this structure:
+            system: `Today's date is ${new Date().toISOString().slice(0, 10)}. You are an EHS task extractor. Given a meeting transcript, extract action items and tasks. Resolve relative dates ("Friday", "August 1st") against today's date — never a past year. Return ONLY valid JSON with this structure:
 {
   "tasks": [
     {
