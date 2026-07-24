@@ -6,6 +6,9 @@
 // Vars: GIT_SHA (set on deploy so /health reports the live commit — see infra/deploy-notes.md)
 // Crons: "0 14 * * 5" (Friday 10am ET — weekly digest), "0 12 * * 1" (Monday — D1 backup to GitHub)
 // Changelog:
+//   v3.9.1 (2026-07-24) — /otter/extract: replace retired claude-sonnet-4-20250514 (404 from
+//     Anthropic since 2026-06-15) with claude-sonnet-5, and surface Anthropic API errors as
+//     502s instead of returning an empty-but-successful extraction (kb/lessons.md 2026-07-24)
 //   v3.9.0 (2026-07-23) — intel supersede parity (superseded_by/confidence + write-time
 //     conflict flagging on POST /intel), weekly digest week-over-week deltas, semantic
 //     search via Vectorize + Workers AI (/search?mode=semantic|hybrid, /vectorize/backfill).
@@ -22,7 +25,7 @@
 //   v3.6.0 (2026-06-03) — weekly digest moved from SendGrid to Resend
 //   v3.5.0 (2026-05-27) — added /scoreboard GET+PATCH for EHS safety pulse metrics
 
-const VERSION = "3.9.0";
+const VERSION = "3.9.1";
 
 // Server-side enum guards. The DB has no enforced CHECK constraints, so this is the
 // only thing standing between a typo and a bad row (see task #389 — status "investigation").
@@ -1036,6 +1039,7 @@ export default {
       if (path === "/otter/extract" && method === "POST") {
         const body = await request.json();
         if (!body.transcript) return err("transcript is required");
+        if (!env.ANTHROPIC_API_KEY) return err("ANTHROPIC_API_KEY secret is not set on the worker (wiped by a PUT-based redeploy? see infra/deploy-notes.md)", 500);
         const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
@@ -1044,8 +1048,11 @@ export default {
             "anthropic-version": "2023-06-01"
           },
           body: JSON.stringify({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 2000,
+            model: "claude-sonnet-5",
+            // Sonnet 5 runs adaptive thinking when the field is omitted; keep it off so
+            // max_tokens stays output-only for this fixed JSON extraction.
+            thinking: { type: "disabled" },
+            max_tokens: 3000,
             system: `You are an EHS task extractor. Given a meeting transcript, extract action items and tasks. Return ONLY valid JSON with this structure:
 {
   "tasks": [
@@ -1077,6 +1084,11 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
           })
         });
         const aiData = await anthropicRes.json();
+        // Never fold an API error into an empty success — a silent `raw:"{}"` hid the
+        // Sonnet 4 retirement for weeks (kb/lessons.md 2026-07-24).
+        if (!anthropicRes.ok) {
+          return err(`Anthropic API ${anthropicRes.status} (${aiData.error?.type || "error"}): ${aiData.error?.message || anthropicRes.statusText}`, 502);
+        }
         const rawText = aiData.content?.filter(b => b.type === "text").map(b => b.text).join("") || "{}";
         let parsed;
         try { parsed = JSON.parse(rawText.replace(/```json|```/g, "").trim()); }

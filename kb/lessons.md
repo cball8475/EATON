@@ -4,6 +4,12 @@ What failed, what wasted time, and what looked right but wasn't. Force-read at m
 
 ---
 
+## 2026-07-24 — /otter/extract silently died when its pinned Claude model retired
+**What:** Automatic debriefs reported down with "an API issue." Testing `/otter/extract` with a transcript containing three obvious tasks returned `{"extracted_tasks":[],"extracted_moves":[],"raw":"{}"}` — HTTP 200, sub-second, no error anywhere. Worker, D1, and the rotated bearer token all checked out healthy.
+**Root cause:** Two stacked failures. (1) The worker pinned `claude-sonnet-4-20250514`, which Anthropic retired 2026-06-15 — every call since then gets a 404 `not_found_error` from the Anthropic API. (2) The endpoint swallowed it: `aiData.content?.filter(...) || "{}"` converts ANY upstream error (retired model, bad key, no credit) into an empty-but-successful extraction, so nothing ever surfaced.
+**Lesson:** Never default an API error into an empty success — check `res.ok` and return the upstream status/type. A sub-second "empty" response from an AI endpoint is a rejection, not an answer (a real extraction takes seconds). Anything pinning a dated model ID has a shelf life; prefer the current alias (`claude-sonnet-5`) and note retirement dates. Fixed in v3.9.1: model swapped to `claude-sonnet-5`, errors surface as 502s, missing-secret guard added.
+**Source:** Debrief-outage debugging, 2026-07-24.
+
 ## 2026-07-10 — EATON auth is a Secrets Store secret, NOT the Worker API_TOKEN var
 **What:** `/morning` 401'd on every authed endpoint (Worker v3.7.0). Burned ~an hour because editing the per-Worker `API_TOKEN` secret in the dashboard did nothing — kept returning 401 even with a clean, byte-perfect token typed directly into curl (ruled out mobile paste, proxy, wrong-worker via `workers_list`).
 **Root cause:** The DEPLOYED worker code (v3.7.0) authenticates against a **Cloudflare Secrets Store** binding named `AUTH_TOKEN`, and only falls back to `env.API_TOKEN` if that binding is absent:
