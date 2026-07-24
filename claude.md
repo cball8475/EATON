@@ -94,7 +94,7 @@ POST     /otter/extract   — AI transcript extraction (uses ANTHROPIC_API_KEY)
 ### Credential Rules
 - Never ask Charlie for a GitHub PAT
 - Use the florence-crm-api /github-push endpoint (GITHUB_TOKEN is a Worker secret) for GitHub operations
-- Cloudflare API token and all Worker secrets are in the fsc-credentials reference
+- Cloudflare API token (`CLOUDFLARE_API_TOKEN`): set as a Claude Code environment variable — sessions get it automatically, and wrangler reads it for deploys + `wrangler secret put`. Do not commit it; GitHub push protection rejects `cfat_` tokens. Worker secret *values* live in the fsc-credentials reference.
 - For Netlify, use the Netlify CLI or MCP
 
 ## API Access Pattern (use from Claude Code)

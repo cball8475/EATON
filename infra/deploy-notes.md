@@ -157,6 +157,6 @@ Deploy-before-migration is safe: /search returns a 503 hint, knowledge/scoreboar
 ---
 
 ## Credential Locations
-- Cloudflare API token: fsc-credentials skill
+- Cloudflare API token: Claude Code environment variable `CLOUDFLARE_API_TOKEN` (claude.ai/code → environment settings; wrangler picks it up — added 2026-07-24). Not committable: GitHub push protection rejects `cfat_` tokens.
 - All Worker secrets: set via Cloudflare API (see fsc-credentials skill for values)
 - Never ask Charlie for a GitHub PAT — use florence-crm-api /github-push endpoint
