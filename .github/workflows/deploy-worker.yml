@@ -1,0 +1,53 @@
+# Deploys eaton-ehs-api whenever the worker source or config changes on main.
+# Same pattern as site-admin's deploy workflows: runs on GitHub's runners, so
+# it works even when a local/cloud session has no Cloudflare token.
+#
+# This closes the live-vs-repo drift gap deploy-notes.md tells you to check by
+# hand — from now on, main IS the deployed worker. GIT_SHA is stamped as a var
+# so /health keeps reporting the live commit (short sha, matching
+# `git rev-parse --short HEAD` per the deploy notes).
+#
+# Required repo secret: CLOUDFLARE_API_TOKEN (Workers + D1 + Vectorize +
+# Workers AI + Secrets Store edit). Worker secrets (API_TOKEN,
+# ANTHROPIC_API_KEY, RESEND_API_KEY, GITHUB_BACKUP_TOKEN) are preserved by
+# wrangler deploy — nothing to re-set.
+name: Deploy eaton-ehs-api
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/worker-api.mjs'
+      - 'infra/wrangler.toml'
+      - '.github/workflows/deploy-worker.yml'
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute short SHA for /health stamping
+        id: sha
+        run: echo "short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: infra
+          command: deploy --var GIT_SHA:${{ steps.sha.outputs.short }}
+
+      # Trust nothing until the live worker says so: /health must report the
+      # exact version and sha this run just deployed.
+      - name: Verify live /health matches this deploy
+        run: |
+          sleep 5
+          health=$(curl -sS https://eaton-ehs-api.cball8475.workers.dev/health)
+          echo "$health"
+          want_sha="${{ steps.sha.outputs.short }}"
+          if ! echo "$health" | grep -q "\"git_sha\":\"$want_sha\""; then
+            echo "::error::/health git_sha does not match deployed commit $want_sha — the deploy did not take effect."
+            exit 1
+          fi
