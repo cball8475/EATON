@@ -127,16 +127,23 @@ export default function OneOnOneCoach() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
+          // claude-sonnet-4-20250514 was retired 2026-06-15 (404s) — same fix
+          // as worker-api.mjs v3.9.1. Keep this in sync with the worker.
+          model: "claude-sonnet-5",
+          max_tokens: 3000,
           system: SYSTEM_PROMPT,
           messages: [{ role: "user", content: userMsg }]
         })
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(`API ${res.status}: ${data.error?.message || res.statusText}`);
       if (data.error) throw new Error(data.error.message);
       const text = data.content?.filter(b => b.type === "text").map(b => b.text).join("") || "";
-      setResult(text);
+      if (!text) throw new Error("Model returned an empty response — please try again.");
+      // A truncated prep doc reads as a finished one — flag it instead.
+      setResult(data.stop_reason === "max_tokens"
+        ? text + "\n\n⚠️ [Output was cut off at the length limit — regenerate for a complete document]"
+        : text);
       setPhase("result");
     } catch (e) {
       setError("Something went wrong: " + (e.message || "Please try again."));

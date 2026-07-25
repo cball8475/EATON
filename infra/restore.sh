@@ -105,16 +105,38 @@ NODE
 echo "── Loading data + rebuilding FTS index"
 npx wrangler d1 execute "$TARGET" --remote -y --file "$WORK/inserts.sql"
 
-echo "── Verifying row counts"
+echo "── Verifying row counts + backup coverage"
 node - "$TARGET" "$WORK/inserts.sql.counts.json" <<'NODE'
 const { execFileSync } = require("child_process");
 const [target, countsPath] = process.argv.slice(2);
 const expected = JSON.parse(require("fs").readFileSync(countsPath, "utf8"));
+const run = (sql) => {
+  const raw = execFileSync("npx", ["wrangler", "d1", "execute", target, "--remote", "-y",
+    "--command", sql, "--json"], { encoding: "utf8", shell: process.platform === "win32" });
+  return JSON.parse(raw.slice(raw.indexOf("[")))[0].results;
+};
+
+// Coverage check FIRST: a table that exists in schema.sql but was never added
+// to the worker's buildExport() is absent from both sides of the count
+// comparison, so counts "match" while a whole table silently isn't backed up.
+// That's exactly how scoreboard/scoreboard_history went missing until the
+// first restore drill (v3.8.1). Compare schema tables against the backup keys.
+const schemaTables = run(
+  "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' " +
+  "AND name NOT LIKE '_cf_%' AND name NOT LIKE '%_fts' AND name NOT LIKE '%_fts_%'"
+).map(r => r.name);
+const notInBackup = schemaTables.filter(t => !(t in expected));
+if (notInBackup.length) {
+  console.error(`✗ SCHEMA TABLE(S) NOT COVERED BY THE BACKUP: ${notInBackup.join(", ")}`);
+  console.error("  These tables exist in schema.sql but are missing from the export — add them");
+  console.error("  to buildExport() in worker-api.mjs AND to TABLES in restore.sh, then re-export.");
+  process.exit(1);
+}
+console.log(`   ✓ backup covers all ${schemaTables.length} schema tables`);
+
 const sql = Object.keys(expected)
   .map(t => `SELECT '${t}' AS tbl, COUNT(*) AS c FROM ${t}`).join(" UNION ALL ");
-const raw = execFileSync("npx", ["wrangler", "d1", "execute", target, "--remote", "-y",
-  "--command", sql, "--json"], { encoding: "utf8", shell: process.platform === "win32" });
-const rows = JSON.parse(raw.slice(raw.indexOf("[")))[0].results;
+const rows = run(sql);
 let ok = true;
 for (const { tbl, c } of rows) {
   const want = expected[tbl];

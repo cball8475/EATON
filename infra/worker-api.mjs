@@ -6,6 +6,11 @@
 // Vars: GIT_SHA (set on deploy so /health reports the live commit — see infra/deploy-notes.md)
 // Crons: "0 14 * * 5" (Friday 10am ET — weekly digest), "0 12 * * 1" (Monday — D1 backup to GitHub)
 // Changelog:
+//   v3.9.4 (2026-07-25) — silent-failure sweep: /otter/extract returns 502 on unparseable
+//     or max_tokens-truncated model output instead of an empty-but-successful extraction
+//     (the parse-failure twin of the v3.9.1 bug); POST /digest/send returns 502 when the
+//     send failed instead of 200 with the failure buried in the body; Secrets Store read
+//     failure logs its fallback to API_TOKEN instead of switching auth sources silently
 //   v3.9.3 (2026-07-25) — cron handler: a failed digest send or backup now throws so the
 //     invocation is marked failed in Cloudflare. Both previously returned {success:false}
 //     into a fire-and-forget ctx.waitUntil, so the weekly digest silently stopped landing
@@ -31,7 +36,7 @@
 //   v3.6.0 (2026-06-03) — weekly digest moved from SendGrid to Resend
 //   v3.5.0 (2026-05-27) — added /scoreboard GET+PATCH for EHS safety pulse metrics
 
-const VERSION = "3.9.3";
+const VERSION = "3.9.4";
 
 // Server-side enum guards. The DB has no enforced CHECK constraints, so this is the
 // only thing standing between a typo and a bad row (see task #389 — status "investigation").
@@ -598,7 +603,12 @@ export default {
       if (env.AUTH_TOKEN && typeof env.AUTH_TOKEN.get === "function") {
         expectedToken = await env.AUTH_TOKEN.get();
       }
-    } catch (_) {}
+    } catch (e) {
+      // Still fail closed (an unreadable secret can't match), but say which
+      // secret is authoritative right now — after a rotation, this fallback
+      // silently re-accepting the old API_TOKEN is how a revoked token lives on.
+      console.error("Secrets Store read for AUTH_TOKEN failed — falling back to API_TOKEN secret:", e.message || e);
+    }
     if (token !== expectedToken) return err("Unauthorized", 401);
 
     try {
@@ -614,7 +624,10 @@ export default {
         const body = formatDigestEmail(data);
         const subject = `EHS Weekly Digest — ${data.week_ending} | ${data.completed.length} closed, ${data.total_open} open${data.overdue.length > 0 ? `, ${data.overdue.length} overdue` : ""}`;
         const result = await sendDigestEmail(env, subject, body);
-        return json({ sent: result, digest: data, formatted: body });
+        // A failed send must fail at the HTTP layer too — callers checking the
+        // status code and not .sent.success would report a send that never
+        // happened (the manual-path twin of the v3.9.3 cron bug).
+        return json({ sent: result, digest: data, formatted: body }, result.success ? 200 : 502);
       }
 
       // ── TASKS ──
@@ -1106,10 +1119,19 @@ Be specific and concise. Only extract clear action items. Mark ownership as "fyi
         if (!anthropicRes.ok) {
           return err(`Anthropic API ${anthropicRes.status} (${aiData.error?.type || "error"}): ${aiData.error?.message || anthropicRes.statusText}`, 502);
         }
-        const rawText = aiData.content?.filter(b => b.type === "text").map(b => b.text).join("") || "{}";
+        // Truncated JSON parses never and half-parses look like thin meetings —
+        // fail loudly on both, same rule as the !ok branch above.
+        if (aiData.stop_reason === "max_tokens") {
+          return err("Anthropic response hit max_tokens — extraction JSON is truncated. Shorten the transcript or raise max_tokens.", 502);
+        }
+        const rawText = aiData.content?.filter(b => b.type === "text").map(b => b.text).join("") || "";
         let parsed;
         try { parsed = JSON.parse(rawText.replace(/```json|```/g, "").trim()); }
-        catch { parsed = { tasks: [], leadership_moves: [] }; }
+        catch (e) {
+          // The parse-failure twin of the v3.9.1 bug: an empty-but-successful
+          // extraction reads as "no action items in this meeting."
+          return err(`Model output was not valid JSON (${e.message}) — first 200 chars: ${rawText.slice(0, 200)}`, 502);
+        }
         return json({ extracted_tasks: parsed.tasks || [], extracted_moves: parsed.leadership_moves || [], raw: rawText });
       }
 

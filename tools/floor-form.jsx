@@ -10,10 +10,21 @@ import { useState, useCallback, useEffect } from "react";
 // ═══════════════════════════════════════════════════════════════
 
 // ── Storage ──
+// sv/ld report failure instead of swallowing it: this form's whole promise is
+// "survives screen off / phone lock", and a quota error or missing storage API
+// failing silently means an operator loses a full inspection with no warning.
 const SK = "method-sheet-form";
-async function sv(d) { try { await window.storage.set(SK, JSON.stringify(d)); } catch {} }
-async function ld() { try { const r = await window.storage.get(SK); return r ? JSON.parse(r.value) : null; } catch { return null; } }
-async function cl() { try { await window.storage.delete(SK); } catch {} }
+async function sv(d) { try { await window.storage.set(SK, JSON.stringify(d)); return true; } catch (e) { console.error("floor-form save failed:", e); return false; } }
+async function ld() {
+  try {
+    const r = await window.storage.get(SK);
+    return { data: r ? JSON.parse(r.value) : null, error: null };
+  } catch (e) {
+    console.error("floor-form load failed:", e);
+    return { data: null, error: e?.message || "storage unavailable" };
+  }
+}
+async function cl() { try { await window.storage.delete(SK); return true; } catch (e) { console.error("floor-form clear failed:", e); return false; } }
 
 // ── Clipboard fallback ──
 function cpy(text) {
@@ -161,10 +172,22 @@ export default function MachineMethodSheetForm() {
   const [copyErr, setCopyErr] = useState(false);
   const [restored, setRestored] = useState(false);
   const [finished, setFinished] = useState(false);
+  const [storageErr, setStorageErr] = useState(null);
 
-  useEffect(() => { (async () => { const s = await ld(); if (s?.machineName !== undefined) { setF(s); setRestored(true); setTimeout(() => setRestored(false), 3000); } else setF(defaults()); })(); }, []);
+  useEffect(() => { (async () => {
+    const { data: s, error } = await ld();
+    if (error) setStorageErr("Couldn't read the saved form (" + error + ") — starting fresh. A previous inspection may exist but be unreadable.");
+    if (s?.machineName !== undefined) { setF(s); setRestored(true); setTimeout(() => setRestored(false), 3000); } else setF(defaults());
+  })(); }, []);
   useEffect(() => { rqWk(); const h = () => { if (document.visibilityState === "visible") rqWk(); }; document.addEventListener("visibilitychange", h); return () => { document.removeEventListener("visibilitychange", h); rlWk(); }; }, []);
-  useEffect(() => { if (f?.machineName !== undefined) sv({ ...f, savedAt: new Date().toISOString() }); }, [f]);
+  useEffect(() => { if (f?.machineName !== undefined) (async () => {
+    const ok = await sv({ ...f, savedAt: new Date().toISOString() });
+    // Only touch the banner on state CHANGES so a persistent failure doesn't re-render every keystroke.
+    setStorageErr(prev => {
+      if (!ok) return prev && prev.startsWith("NOT SAVING") ? prev : "NOT SAVING — autosave is failing. Don't lock the phone; finish and copy your work out now.";
+      return prev && prev.startsWith("NOT SAVING") ? null : prev;
+    });
+  })(); }, [f]);
 
   const u = useCallback((p) => setF(prev => ({ ...prev, ...p })), []);
   const tog = (id) => setOp(prev => ({ ...prev, [id]: !prev[id] }));
@@ -176,7 +199,7 @@ export default function MachineMethodSheetForm() {
   };
   const handleFinish = async () => { await handleCopy(); setFinished(true); };
   const handlePrint = () => window.print();
-  const handleReset = async () => { if (window.confirm("Clear all form data? Can't undo.")) { await cl(); setF(defaults()); setOp({ "1": true }); setFinished(false); } };
+  const handleReset = async () => { if (window.confirm("Clear all form data? Can't undo.")) { const ok = await cl(); if (!ok) setStorageErr("Couldn't clear saved data — the old form may reappear next time you open this."); setF(defaults()); setOp({ "1": true }); setFinished(false); } };
 
   if (!f) return <div style={{ padding: "3rem 1rem", textAlign: "center" }}><p style={{ fontSize: 14, color: "var(--color-text-secondary)" }}>Loading...</p></div>;
 
@@ -203,6 +226,14 @@ export default function MachineMethodSheetForm() {
 
       {restored && (
         <div style={{ position: "fixed", top: 12, left: "50%", transform: "translateX(-50%)", background: "var(--color-background-success)", border: "0.5px solid var(--color-border-success)", borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 500, color: "var(--color-text-success)", zIndex: 999, animation: "fadeOut 3s ease-in-out forwards" }}>✓ Form restored</div>
+      )}
+
+      {/* Persistent storage-failure banner — autosave failing must be louder
+          than autosave working, not invisible. Stays until saves succeed. */}
+      {storageErr && (
+        <div className="no-print" style={{ position: "sticky", top: 0, zIndex: 998, background: "#7f1d1d", color: "#fff", borderRadius: 8, padding: "10px 14px", fontSize: 13, fontWeight: 600, marginBottom: 10 }}>
+          ⚠️ {storageErr}
+        </div>
       )}
 
       {/* Finished overlay */}
