@@ -6,6 +6,10 @@
 // Vars: GIT_SHA (set on deploy so /health reports the live commit — see infra/deploy-notes.md)
 // Crons: "0 14 * * 5" (Friday 10am ET — weekly digest), "0 12 * * 1" (Monday — D1 backup to GitHub)
 // Changelog:
+//   v3.9.3 (2026-07-25) — cron handler: a failed digest send or backup now throws so the
+//     invocation is marked failed in Cloudflare. Both previously returned {success:false}
+//     into a fire-and-forget ctx.waitUntil, so the weekly digest silently stopped landing
+//     after 2026-06-25 (RESEND_API_KEY 401) while every cron run reported success.
 //   v3.9.2 (2026-07-24) — /otter/extract: inject today's date into the extraction prompt so
 //     relative due dates ("Friday", "August 1st") resolve to the right year
 //   v3.9.1 (2026-07-24) — /otter/extract: replace retired claude-sonnet-4-20250514 (404 from
@@ -27,7 +31,7 @@
 //   v3.6.0 (2026-06-03) — weekly digest moved from SendGrid to Resend
 //   v3.5.0 (2026-05-27) — added /scoreboard GET+PATCH for EHS safety pulse metrics
 
-const VERSION = "3.9.2";
+const VERSION = "3.9.3";
 
 // Server-side enum guards. The DB has no enforced CHECK constraints, so this is the
 // only thing standing between a typo and a bad row (see task #389 — status "investigation").
@@ -537,26 +541,37 @@ async function sendDigestEmail(env, subject, body) {
 export default {
   // ── CRON HANDLER ──
   // "0 14 * * 5" → Friday weekly digest email. "0 12 * * 1" → Monday D1 backup.
+  // A cron that reports success while its work silently failed is how the weekly
+  // digest went missing for a month (RESEND_API_KEY 401 — kb/lessons.md 2026-07-25).
+  // Both routines return {success:false} rather than throwing, and ctx.waitUntil()
+  // never rejected into the old try/catch, so every run looked clean. Now a
+  // non-success result throws inside the waitUntil promise, which marks the
+  // invocation failed in Cloudflare instead of hiding it.
   async scheduled(controller, env, ctx) {
     const db = env.DB;
     if (controller.cron === "0 12 * * 1") {
-      try {
-        ctx.waitUntil(runBackup(env, db));
-      } catch (e) {
-        console.error("Backup cron error:", e);
-      }
+      ctx.waitUntil((async () => {
+        const r = await runBackup(env, db);
+        if (!r?.success) {
+          console.error("Backup cron FAILED:", JSON.stringify(r));
+          throw new Error(`backup failed: ${r?.reason || r?.error || "unknown"}`);
+        }
+        console.log(`Backup pushed: ${r.path}`);
+      })());
       return;
     }
-    try {
+    ctx.waitUntil((async () => {
       const data = await buildWeeklyDigest(db);
       const body = formatDigestEmail(data);
       const weekEnd = data.week_ending;
       const subject = `EHS Weekly Digest — ${weekEnd} | ${data.completed.length} closed, ${data.total_open} open${data.overdue.length > 0 ? `, ${data.overdue.length} overdue` : ""}`;
-      ctx.waitUntil(sendDigestEmail(env, subject, body));
-      console.log(`Weekly digest sent for week ending ${weekEnd}`);
-    } catch (e) {
-      console.error("Digest cron error:", e);
-    }
+      const r = await sendDigestEmail(env, subject, body);
+      if (!r?.success) {
+        console.error("Digest cron FAILED:", JSON.stringify(r));
+        throw new Error(`digest send failed (status ${r?.status ?? "n/a"}): ${r?.error || r?.reason || "unknown"}`);
+      }
+      console.log(`Weekly digest sent for week ending ${weekEnd} (resend id ${r.id})`);
+    })());
   },
 
   async fetch(request, env, ctx) {
