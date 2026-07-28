@@ -1,0 +1,15 @@
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+.dev.vars
+*.token
+.fsc/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+
+# Dependencies
+node_modules/
