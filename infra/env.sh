@@ -101,5 +101,12 @@ eaton() {
     echo "eaton: no token — see the bootstrap steps env.sh printed above" >&2
     return 1
   fi
-  curl -s -H "Authorization: Bearer $EATON_TOKEN" "$EATON_API$path" "$@"
+  local out
+  out=$(curl -s -H "Authorization: Bearer $EATON_TOKEN" "$EATON_API$path" "$@")
+  # A stale cache after a rotation fails with exactly this body — say so instead
+  # of letting the 401 read like a worker outage (kb/lessons.md 2026-07-29).
+  if [ "$out" = '{"error":"Unauthorized"}' ]; then
+    echo "eaton: 401 Unauthorized — cached token likely predates a rotation. Run eaton_refresh_token and retry." >&2
+  fi
+  printf '%s' "$out"
 }
