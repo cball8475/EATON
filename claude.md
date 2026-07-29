@@ -27,7 +27,7 @@ Charlie Ball. Sr. EHS Engineer at Eaton's Sumter, SC facility. Started May 4, 20
 
 ### Worker API
 - **URL:** `https://eaton-ehs-api.cball8475.workers.dev`
-- **Auth:** Bearer token — source of truth is [`infra/env.sh`](infra/env.sh) (`EATON_TOKEN`). Rotate there, nowhere else.
+- **Auth:** Bearer token. Source of truth: Cloudflare **Secrets Store** secret `EATON_TOKEN` (bound as `AUTH_TOKEN`). Sessions self-serve the value from D1 `app_config` (key `EATON_TOKEN`) — never ask Charlie to paste it. Bootstrap: `source infra/env.sh`; if it reports no token, read the row via Cloudflare MCP `d1_database_query`, write `~/.fsc/eaton.token` (mode 600), source again. On a 401 after a rotation: `eaton_refresh_token`. Rotate ONLY via the **Rotate EATON API token** Actions workflow.
 - **Worker name:** `eaton-ehs-api` — live version/commit from `/health` (`version`, `git_sha`); don't trust any hardcoded number here
 - **Account ID:** `37821191a8c1419e055c2c0a30546589`
 
@@ -94,15 +94,15 @@ POST     /otter/extract   — AI transcript extraction (uses ANTHROPIC_API_KEY)
 ### Credential Rules
 - Never ask Charlie for a GitHub PAT
 - Use the florence-crm-api /github-push endpoint (GITHUB_TOKEN is a Worker secret) for GitHub operations
-- Cloudflare API token (`CLOUDFLARE_API_TOKEN`): set as a Claude Code environment variable — sessions get it automatically, and wrangler reads it for deploys + `wrangler secret put`. Do not commit it; GitHub push protection rejects `cfat_` tokens. Worker secret *values* live in the fsc-credentials reference.
+- Cloudflare API token (`CLOUDFLARE_API_TOKEN`): **not present in cloud sessions** (confirmed 2026-07-25 — the old "sessions get it automatically" claim was wrong). It lives as a GitHub Actions repo secret; worker deploys (`deploy-worker.yml`) and token rotations (`rotate-token.yml`) run on GitHub's runners. Charlie's local shells export it for wrangler. Do not commit it; GitHub push protection rejects `cfat_` tokens. Cloud sessions reach Cloudflare through the MCP connector (D1 queries, worker reads) instead.
 - For Netlify, use the Netlify CLI or MCP
 
 ## API Access Pattern (use from Claude Code)
 
-Source `infra/env.sh` once at the start of any Bash session, then use the `eaton` helper. The helper forwards to `$EATON_API$path` with Bearer auth.
+Source `infra/env.sh` at the start of any Bash block, then use the `eaton` helper. The helper forwards to `$EATON_API$path` with Bearer auth. Token resolution is automatic (env var → `~/.fsc/eaton.token` → D1 fetch when `CLOUDFLARE_API_TOKEN` exists). In a cloud session with none of those, env.sh prints the self-serve bootstrap: read `app_config` key `EATON_TOKEN` via Cloudflare MCP `d1_database_query`, write `~/.fsc/eaton.token` (mode 600), source again — do not ask Charlie for the token.
 
 ```bash
-source ~/projects/eaton-ehs-project/infra/env.sh
+source ~/projects/eaton-ehs-project/infra/env.sh   # local; in cloud sessions: source infra/env.sh
 
 # Get stats
 eaton /stats | jq .
