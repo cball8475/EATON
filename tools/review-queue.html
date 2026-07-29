@@ -1,4 +1,9 @@
-<title>Review Queue — Inbox 30 Jun to 28 Jul 2026</title>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review Queue — EHS CMD</title>
 <style>
   :root{
     --ground:#f6f5f2; --surface:#fffefc; --surface-2:#eeece7; --surface-3:#e6e3dc;
@@ -47,7 +52,7 @@
     --mute:#7c7f85; --mute-soft:#e8e6e2;
   }
 
-  *{box-sizing:border-box;}
+  *{box-sizing:border-box; margin:0; padding:0;}
   body{
     background:var(--ground); color:var(--ink);
     font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
@@ -55,9 +60,8 @@
   }
   .mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
         font-variant-numeric:tabular-nums;}
-  .wrap{max-width:860px; margin:0 auto; padding:36px 18px 140px;}
+  .wrap{max-width:880px; margin:0 auto; padding:32px 18px 150px;}
 
-  /* ── masthead ── */
   .mast{border-bottom:2px solid var(--ink); padding-bottom:14px;}
   .kicker{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px;
           letter-spacing:.14em; text-transform:uppercase; color:var(--accent); font-weight:600;}
@@ -68,34 +72,47 @@
            color:var(--ink-3); letter-spacing:.03em; margin-top:12px;
            display:flex; flex-wrap:wrap; gap:5px 18px;}
 
-  /* ── how-to ── */
+  /* ── connection banner ── */
+  .conn{margin:22px 0 0; border:1px solid var(--rule); background:var(--surface);
+        padding:13px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+        border-left:3px solid var(--mute);}
+  .conn.ok{border-left-color:var(--good);}
+  .conn.bad{border-left-color:var(--critical); background:var(--critical-soft);}
+  .conn.warn{border-left-color:var(--accent); background:var(--accent-soft);}
+  .conn .lbl{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px;
+             letter-spacing:.08em; text-transform:uppercase; font-weight:600;}
+  .conn .msg{font-size:13.5px; color:var(--ink-2); flex:1; min-width:180px;}
+  .conn input{font:inherit; font-size:13px; padding:6px 9px; background:var(--ground);
+              color:var(--ink); border:1px solid var(--rule-2); min-width:230px; flex:1;
+              font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+
   .howto{background:var(--surface); border:1px solid var(--rule); border-left:3px solid var(--accent);
-         padding:15px 18px; margin:24px 0 0; font-size:14px; color:var(--ink-2);}
+         padding:15px 18px; margin:18px 0 0; font-size:14px; color:var(--ink-2);}
   .howto b{color:var(--ink);}
   .howto ol{margin:8px 0 0 18px;} .howto li{margin-bottom:4px;}
 
-  /* ── progress ── */
   .prog{position:sticky; top:0; z-index:40; background:var(--ground);
-        border-bottom:1px solid var(--rule); padding:11px 0 10px; margin:26px 0 30px;}
+        border-bottom:1px solid var(--rule); padding:11px 0 10px; margin:24px 0 30px;}
   .bar{height:5px; background:var(--surface-3); overflow:hidden; display:flex;}
   .bar i{display:block; height:100%; transition:width .28s ease;}
-  .progrow{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-top:9px;}
+  .progrow{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:9px;}
   .progrow .c{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11.5px;
               color:var(--ink-2); letter-spacing:.04em; font-variant-numeric:tabular-nums;}
   .progrow .c b{color:var(--ink); font-weight:600;}
   .spacer{flex:1;}
 
-  /* ── buttons ── */
   button{font:inherit; cursor:pointer; border:1px solid var(--rule-2); background:var(--surface);
          color:var(--ink-2); padding:5px 10px; line-height:1.35;
          font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px;
-         letter-spacing:.06em; text-transform:uppercase; transition:background .12s,border-color .12s,color .12s;}
-  button:hover{border-color:var(--ink-3); color:var(--ink);}
+         letter-spacing:.06em; text-transform:uppercase;
+         transition:background .12s,border-color .12s,color .12s;}
+  button:hover:not(:disabled){border-color:var(--ink-3); color:var(--ink);}
   button:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  button:disabled{opacity:.45; cursor:not-allowed;}
   .btn-solid{background:var(--ink); color:var(--ground); border-color:var(--ink); font-weight:600;}
-  .btn-solid:hover{background:var(--ink-2); border-color:var(--ink-2); color:var(--ground);}
+  .btn-solid:hover:not(:disabled){background:var(--ink-2); border-color:var(--ink-2); color:var(--ground);}
+  .btn-danger{background:var(--critical); color:#fff; border-color:var(--critical); font-weight:600;}
 
-  /* ── sections ── */
   section{margin:0 0 42px; scroll-margin-top:100px;}
   .shead{display:flex; align-items:baseline; gap:12px; border-bottom:1px solid var(--ink);
          padding-bottom:7px; margin-bottom:2px; flex-wrap:wrap;}
@@ -104,21 +121,22 @@
              color:var(--ink-3); letter-spacing:.06em;}
   .snote{color:var(--ink-2); font-size:14.5px; margin:12px 0 2px; max-width:68ch;}
 
-  /* ── item ── */
   .item{border-bottom:1px solid var(--rule); border-left:3px solid var(--rule-2);
         padding:15px 0 14px 13px; transition:opacity .18s, border-color .18s;}
   .item[data-u="crit"]{border-left-color:var(--critical);}
   .item[data-u="warn"]{border-left-color:var(--accent);}
   .item[data-u="calm"]{border-left-color:var(--rule-2);}
   .item[data-u="good"]{border-left-color:var(--good);}
-  .item.settled{opacity:.55;}
-  .item.settled:hover{opacity:1;}
+  .item.settled{opacity:.58;}
+  .item.settled:hover, .item.settled:focus-within{opacity:1;}
   .item.settled[data-d="task"]{border-left-color:var(--accent);}
   .item.settled[data-d="reply"]{border-left-color:var(--critical);}
   .item.settled[data-d="cal"]{border-left-color:var(--info);}
   .item.settled[data-d="know"],.item.settled[data-d="intel"]{border-left-color:var(--know);}
   .item.settled[data-d="replied"],.item.settled[data-d="move"]{border-left-color:var(--good);}
   .item.settled[data-d="skip"],.item.settled[data-d="fyi"]{border-left-color:var(--mute);}
+  .item.written{opacity:1; background:var(--good-soft);}
+  .item.failed{opacity:1; background:var(--critical-soft); border-left-color:var(--critical);}
 
   .ihead{display:flex; gap:14px; align-items:flex-start;}
   .when{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px;
@@ -140,11 +158,10 @@
   .tag.trk{background:var(--mute-soft);}
   .tag.done{background:var(--good-soft); border-color:var(--good); color:var(--good);}
 
-  /* ── disposition ── */
   .disp{display:flex; flex-wrap:wrap; gap:5px; margin-top:11px; align-items:center;}
   .d{border:1px solid var(--rule-2); background:transparent; color:var(--ink-3);
      padding:4px 9px; font-size:10.5px;}
-  .d:hover{background:var(--surface-2);}
+  .d:hover:not(:disabled){background:var(--surface-2);}
   .d.sug{border-style:dashed; border-color:var(--ink-3); color:var(--ink-2);}
   .d[aria-pressed="true"]{font-weight:600;}
   .d[data-k="task"][aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:#fff;}
@@ -154,39 +171,33 @@
   .d[data-k="replied"][aria-pressed="true"],.d[data-k="move"][aria-pressed="true"]{background:var(--good); border-color:var(--good); color:#fff;}
   .d[data-k="deleg"][aria-pressed="true"]{background:var(--ink); border-color:var(--ink); color:var(--ground);}
   .d[data-k="fyi"][aria-pressed="true"],.d[data-k="skip"][aria-pressed="true"]{background:var(--mute); border-color:var(--mute); color:#fff;}
-  @media (prefers-color-scheme: dark){
-    .d[data-k="task"][aria-pressed="true"],.d[data-k="reply"][aria-pressed="true"],
-    .d[data-k="cal"][aria-pressed="true"],.d[data-k="know"][aria-pressed="true"],
-    .d[data-k="intel"][aria-pressed="true"],.d[data-k="replied"][aria-pressed="true"],
-    .d[data-k="move"][aria-pressed="true"],.d[data-k="fyi"][aria-pressed="true"],
-    .d[data-k="skip"][aria-pressed="true"]{color:#12141a;}
-  }
   :root[data-theme="dark"] .d[aria-pressed="true"]{color:#12141a;}
-  :root[data-theme="light"] .d[data-k="deleg"][aria-pressed="true"]{color:var(--ground);}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]) .d[aria-pressed="true"]{color:#12141a;}
+  }
   .more{color:var(--ink-3); padding:4px 8px;}
 
-  /* ── detail form ── */
   .det{display:none; gap:8px; flex-wrap:wrap; align-items:flex-end;
        margin-top:10px; padding:11px 12px; background:var(--surface-2); border:1px solid var(--rule);}
   .det.on{display:flex;}
   .f{display:flex; flex-direction:column; gap:3px;}
   .f label{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:9.5px;
            letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3);}
-  .f input,.f select,.f textarea{
-    font:inherit; font-size:13px; padding:5px 7px; background:var(--surface);
+  .f input,.f select{font:inherit; font-size:13px; padding:5px 7px; background:var(--surface);
     color:var(--ink); border:1px solid var(--rule-2); border-radius:0;}
-  .f input:focus,.f select:focus,.f textarea:focus{outline:2px solid var(--accent); outline-offset:-1px;}
-  .f input[type=date]{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px;}
-  .f.grow{flex:1; min-width:190px;}
-  .f.grow input{width:100%;}
+  .f input:focus,.f select:focus{outline:2px solid var(--accent); outline-offset:-1px;}
+  .f input[type=date],.f input[type=time]{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px;}
+  .f.grow{flex:1; min-width:190px;} .f.grow input{width:100%;}
+  .f.bad input,.f.bad select{border-color:var(--critical); background:var(--critical-soft);}
 
-  /* ── verdict line ── */
   .verd{display:none; margin-top:9px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
         font-size:11px; letter-spacing:.05em; color:var(--ink-2); align-items:center; gap:9px; flex-wrap:wrap;}
   .verd.on{display:flex;}
   .verd .vk{font-weight:700; text-transform:uppercase;}
+  .verd .ok{color:var(--good); font-weight:700;}
+  .verd .fail{color:var(--critical); font-weight:700;}
+  .verd .warnf{color:var(--accent); font-weight:700;}
 
-  /* ── callout ── */
   .callout{background:var(--surface); border:1px solid var(--rule); border-left:3px solid var(--accent);
            padding:17px 19px; margin:14px 0 4px;}
   .callout h3{font-size:15.5px; font-weight:660; margin-bottom:8px;}
@@ -195,30 +206,56 @@
   .callout ul{margin:8px 0 8px 18px;} .callout li{font-size:14.5px; color:var(--ink-2); margin-bottom:5px;}
   strong{color:var(--ink); font-weight:620;}
 
-  /* ── export dock ── */
   .dock{position:fixed; left:0; right:0; bottom:0; z-index:60; background:var(--surface);
-        border-top:2px solid var(--ink); padding:11px 18px;
-        box-shadow:0 -8px 24px rgba(0,0,0,.09);}
-  .dockin{max-width:860px; margin:0 auto; display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+        border-top:2px solid var(--ink); padding:11px 18px; box-shadow:0 -8px 24px rgba(0,0,0,.09);}
+  .dockin{max-width:880px; margin:0 auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
   .dockin .st{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11.5px;
               color:var(--ink-2); letter-spacing:.04em; flex:1; min-width:150px;}
   .dockin .st b{color:var(--ink);}
+  .pill{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10px;
+        letter-spacing:.09em; text-transform:uppercase; padding:3px 8px; border:1px solid var(--rule-2);
+        color:var(--ink-3);}
+  .pill.ok{border-color:var(--good); color:var(--good); background:var(--good-soft);}
+  .pill.bad{border-color:var(--critical); color:var(--critical); background:var(--critical-soft);}
+  .pill.warn{border-color:var(--accent); color:var(--accent); background:var(--accent-soft);}
 
-  /* ── modal ── */
-  .modal{position:fixed; inset:0; z-index:80; background:rgba(10,11,14,.62);
+  .modal{position:fixed; inset:0; z-index:80; background:rgba(10,11,14,.66);
          display:none; align-items:center; justify-content:center; padding:18px;}
   .modal.on{display:flex;}
-  .sheet{background:var(--ground); border:1px solid var(--rule-2); max-width:760px; width:100%;
-         max-height:88vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.4);}
+  .sheet{background:var(--ground); border:1px solid var(--rule-2); max-width:780px; width:100%;
+         max-height:88vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.45);}
   .sheet header{padding:16px 20px 12px; border-bottom:1px solid var(--rule); display:flex;
                 align-items:baseline; gap:12px; flex-wrap:wrap;}
   .sheet header h2{font-size:17px; font-weight:660; flex:1;}
-  .sheet .pad{padding:16px 20px; overflow:auto;}
-  .sheet p.lede{font-size:14px; color:var(--ink-2); margin-bottom:12px;}
-  textarea#out{width:100%; height:300px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-    font-size:11.5px; line-height:1.5; padding:12px; background:var(--surface); color:var(--ink);
-    border:1px solid var(--rule-2); resize:vertical;}
+  .sheet .pad{padding:16px 20px; overflow:auto; flex:1;}
+  .sheet p.lede{font-size:14px; color:var(--ink-2); margin-bottom:14px;}
   .sheet footer{padding:13px 20px; border-top:1px solid var(--rule); display:flex; gap:9px; flex-wrap:wrap;}
+
+  .plan{border:1px solid var(--rule); margin-bottom:14px;}
+  .plan h4{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10.5px;
+           letter-spacing:.1em; text-transform:uppercase; padding:8px 12px; background:var(--surface-2);
+           border-bottom:1px solid var(--rule); color:var(--ink-2); font-weight:600;
+           display:flex; justify-content:space-between; gap:10px;}
+  .prow{display:flex; gap:10px; padding:8px 12px; border-bottom:1px solid var(--rule);
+        font-size:13px; background:var(--surface); align-items:flex-start;}
+  .prow:last-child{border-bottom:none;}
+  .prow .stat{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10px;
+              letter-spacing:.07em; text-transform:uppercase; width:88px; flex:none; padding-top:2px;}
+  .prow .stat.q{color:var(--ink-3);}
+  .prow .stat.go{color:var(--info);}
+  .prow .stat.ok{color:var(--good); font-weight:700;}
+  .prow .stat.fail{color:var(--critical); font-weight:700;}
+  .prow .txt{flex:1; min-width:0;}
+  .prow .txt em{display:block; font-style:normal; font-size:11.5px; color:var(--critical);
+                font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; margin-top:3px;
+                word-break:break-word;}
+  .banner{padding:12px 14px; margin-bottom:14px; border:1px solid var(--rule-2);
+          font-size:14px; display:none;}
+  .banner.on{display:block;}
+  .banner.ok{background:var(--good-soft); border-color:var(--good); color:var(--ink);}
+  .banner.bad{background:var(--critical-soft); border-color:var(--critical); color:var(--ink);}
+  .banner.busy{background:var(--surface-2);}
+  .banner b{font-weight:680;}
 
   .legend{display:flex; flex-wrap:wrap; gap:4px 14px; margin:14px 0 0;
           font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10.5px;
@@ -234,17 +271,20 @@
     .ihead{flex-direction:column; gap:5px;}
     .when{width:auto; display:flex; gap:8px; padding-top:0;}
     .when b{display:inline;}
-    .wrap{padding-bottom:150px;}
+    .wrap{padding-bottom:160px;}
+    .prow{flex-direction:column; gap:4px;} .prow .stat{width:auto;}
   }
   @media (prefers-reduced-motion:reduce){*{transition:none !important;}}
 </style>
+</head>
+<body>
 
 <div class="wrap">
 
   <div class="mast">
-    <div class="kicker">Eaton Sumter · EHS · Review Queue</div>
+    <div class="kicker">Eaton Sumter · EHS CMD · Review Queue</div>
     <h1>Inbox triage — 30 Jun to 28 Jul</h1>
-    <p class="sub">563 messages since the last import. Everything carrying a task, a deadline, a calendar commitment, or a decision someone is waiting on. Disposition each one; the page builds a payload Claude executes.</p>
+    <p class="sub">563 messages since the last import. Everything carrying a task, a deadline, a calendar commitment, or a decision someone is waiting on. Disposition each one, then submit straight to D1.</p>
     <div class="runline">
       <span>WINDOW 30-JUN-2026 → 28-JUL-2026</span>
       <span>SOURCE Inbox_export.CSV</span>
@@ -252,12 +292,22 @@
     </div>
   </div>
 
+  <div class="conn" id="conn">
+    <span class="lbl" id="connLbl">Connecting</span>
+    <span class="msg" id="connMsg">Checking the Worker API…</span>
+    <input type="password" id="tokenIn" placeholder="Paste the Eaton EHS API token" style="display:none" autocomplete="off">
+    <button id="tokenSave" style="display:none">Save token</button>
+    <button id="tokenClear" style="display:none">Change token</button>
+    <button id="connRetry" style="display:none">Retry</button>
+  </div>
+
   <div class="howto">
     <b>How this works.</b>
     <ol>
       <li>Each item shows a <b>dashed suggestion</b> — tap it to accept, or pick a different disposition.</li>
       <li>Tasks, replies and calendar items open a small form: due date, priority, note. Defaults are pre-filled.</li>
-      <li>Hit <b>Build payload</b> at the bottom, copy it, and paste it back into the chat. Claude writes the D1 rows and creates the real calendar events.</li>
+      <li><b>Submit</b> writes every decision to D1 through the Worker API. You get a per-row result — written with its new row id, or the exact HTTP status and error. Nothing is marked done unless the API confirmed it.</li>
+      <li>Calendar items also produce a <b>.ics file</b> you can open to drop the events straight into Outlook or Google Calendar.</li>
     </ol>
     <div class="legend">
       <span><i style="background:var(--accent)"></i>Task</span>
@@ -284,63 +334,54 @@
   <div class="foot">
     EXTRACTED FROM 1,414-ROW OUTLOOK EXPORT · 563 IN WINDOW · 470 AFTER NOISE FILTER<br>
     DATES INFERRED FROM QUOTED "SENT:" HEADERS — THE EXPORT CARRIES NO RECEIVED-DATE COLUMN<br>
-    DECISIONS LIVE IN THIS PAGE ONLY UNTIL YOU BUILD AND PASTE THE PAYLOAD
+    WRITES GO TO eaton-ehs-api.cball8475.workers.dev → D1 eaton-ehs-dashboard
   </div>
 </div>
 
 <div class="dock">
   <div class="dockin">
+    <span class="pill" id="apiPill">API ?</span>
     <span class="st" id="dockStat">Nothing decided yet</span>
-    <button id="btnDownload">Save file</button>
-    <button class="btn-solid" id="btnBuild">Build payload</button>
+    <button id="btnIcs">Calendar .ics</button>
+    <button class="btn-solid" id="btnSubmit" disabled>Submit to D1</button>
   </div>
 </div>
 
 <div class="modal" id="modal">
-  <div class="sheet" role="dialog" aria-modal="true" aria-label="Payload for Claude">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
     <header>
-      <h2>Paste this back into the chat</h2>
+      <h2 id="sheetTitle">Confirm the writes</h2>
       <button id="btnClose">Close</button>
     </header>
     <div class="pad">
-      <p class="lede">Claude reads this and writes the D1 rows, then creates the Google Calendar events. Anything you dismissed is listed so there's a record of what was skipped and why.</p>
-      <textarea id="out" readonly spellcheck="false"></textarea>
+      <div class="banner" id="banner"></div>
+      <p class="lede" id="sheetLede"></p>
+      <div id="planBody"></div>
     </div>
     <footer>
-      <button class="btn-solid" id="btnCopy">Copy to clipboard</button>
-      <button id="btnDownload2">Save as file</button>
+      <button class="btn-solid" id="btnGo">Write records</button>
+      <button class="btn-danger" id="btnRetry" style="display:none">Retry failed</button>
+      <button id="btnReport" style="display:none">Copy failure report</button>
     </footer>
   </div>
 </div>
 
 <script>
 /* ============================================================
-   REVIEW QUEUE SHELL
+   REVIEW QUEUE — live writes to the EHS CMD Worker API.
    Reusable for Otter transcripts: replace SOURCE + SECTIONS +
    ITEMS below. Everything under "ENGINE" stays as-is.
    ============================================================ */
+
+const API = "https://eaton-ehs-api.cball8475.workers.dev";
 
 const SOURCE = {
   kind: "email",
   label: "Inbox export 30-Jun → 28-Jul 2026",
   window: "2026-06-30..2026-07-28",
-  today: "2026-07-28"
+  today: "2026-07-28",
+  tag: "inbox-review-2026-07-28"
 };
-
-const DISPOSITIONS = {
-  task:    {label:"Task",        needs:["due","pri","note"],  desc:"New task in D1, ownership mine"},
-  reply:   {label:"Need reply",  needs:["who","due","note"],  desc:"Task tagged reply, waiting on them"},
-  replied: {label:"Replied",     needs:[],                    desc:"Already handled, no record"},
-  cal:     {label:"Calendar",    needs:["date","time","note"],desc:"Google Calendar event + knowledge entry"},
-  know:    {label:"Knowledge",   needs:["note"],              desc:"D1 knowledge entry, no action"},
-  intel:   {label:"Person",      needs:["who","note"],        desc:"D1 people_intel entry"},
-  move:    {label:"Ldr move",    needs:["note"],              desc:"D1 leadership_moves entry"},
-  deleg:   {label:"Delegate",    needs:["who","due","note"],  desc:"Task owned by someone else"},
-  fyi:     {label:"FYI",         needs:[],                    desc:"Undated fyi row in D1"},
-  skip:    {label:"Dismiss",     needs:[],                    desc:"No record kept"}
-};
-const PRIMARY = ["task","reply","cal","know","skip"];
-const SECONDARY = ["replied","deleg","intel","move","fyi"];
 
 const SECTIONS = [
   {id:"hot",   h:"Hot — today and tomorrow", ct:"6 items"},
@@ -742,36 +783,254 @@ const ITEMS = [
    ENGINE — generic, do not edit per-source
    ============================================================ */
 
+/* Mirrors the Worker's ENUMS block (infra/worker-api.mjs). Kept in sync so a bad
+   value is caught here with a pointed message instead of coming back as a 400. */
+const ENUMS = {
+  status: ["todo","wip","done","projects","undated"],
+  priority: ["High","Medium","Low"],
+  ownership: ["mine","fyi"],
+  intel_type: ["relationship","political","working_style","reliability","alignment",
+               "history","strength","weakness","opportunity"]
+};
+
+const SRC_TAG = SOURCE.tag;
+
+/* Each disposition declares the endpoint it writes to and how to build the body.
+   `endpoint:null` means it is recorded locally and never hits the API. */
+const DISPOSITIONS = {
+  task: {
+    label:"Task", needs:["due","pri","note"], endpoint:"/tasks",
+    desc:"New task in D1, ownership mine",
+    build:(it,v)=>({
+      title: plain(it.t),
+      description: v.note || plain(it.b && it.b[0]) || null,
+      due_date: v.due || null,
+      priority: v.pri || "Medium",
+      status: "todo",
+      ownership: "mine",
+      source: SOURCE.kind,
+      source_label: plain(it.src),
+      tags: SRC_TAG,
+      ai_extracted: 1
+    })
+  },
+  reply: {
+    label:"Need reply", needs:["who","due","note"], endpoint:"/tasks",
+    desc:"Task tagged reply, waiting on them",
+    build:(it,v)=>({
+      title: "Reply: " + plain(it.t),
+      description: v.note || plain(it.b && it.b[0]) || null,
+      due_date: v.due || null,
+      priority: "High",
+      status: "todo",
+      ownership: "mine",
+      waiting_on: v.who || null,
+      source: SOURCE.kind,
+      source_label: plain(it.src),
+      tags: SRC_TAG + ",reply",
+      ai_extracted: 1
+    })
+  },
+  replied: { label:"Replied", needs:[], endpoint:null, desc:"Already handled, nothing written" },
+  cal: {
+    label:"Calendar", needs:["date","time","note"], endpoint:"/tasks",
+    desc:"Reminder task in D1 + a .ics event",
+    build:(it,v)=>({
+      title: plain(it.t),
+      description: v.note || plain(it.b && it.b[0]) || null,
+      due_date: v.date || null,
+      priority: "High",
+      status: "todo",
+      ownership: "mine",
+      source: SOURCE.kind,
+      source_label: plain(it.src),
+      tags: SRC_TAG + ",calendar",
+      notes: v.time ? ("Event time: " + v.time) : "All day",
+      ai_extracted: 1
+    })
+  },
+  know: {
+    label:"Knowledge", needs:["cat","area","note"], endpoint:"/knowledge",
+    desc:"Knowledge entry, no action",
+    build:(it,v)=>({
+      category: v.cat || "context",
+      area: v.area || "EHS",
+      subject: plain(it.t),
+      detail: v.note || plain((it.b||[]).join(" ")) || plain(it.t),
+      source_label: plain(it.src),
+      tags: SRC_TAG,
+      confidence: "medium"
+    })
+  },
+  intel: {
+    label:"Person", needs:["who","itype","note"], endpoint:"/intel",
+    desc:"People-intel entry",
+    build:(it,v)=>({
+      person_name: v.who || "",
+      intel_type: v.itype || "working_style",
+      content: v.note || plain((it.b||[]).join(" ")) || plain(it.t),
+      source_label: plain(it.src),
+      confidence: "medium"
+    })
+  },
+  move: {
+    label:"Ldr move", needs:["note"], endpoint:"/moves",
+    desc:"Leadership-move entry",
+    build:(it,v)=>({
+      date: SOURCE.today,
+      description: v.note || plain(it.t),
+      category: "proactive",
+      context: plain((it.b||[]).join(" ")).slice(0,600) || null,
+      source_label: plain(it.src)
+    })
+  },
+  deleg: {
+    label:"Delegate", needs:["who","due","note"], endpoint:"/tasks",
+    desc:"Task owned by someone else",
+    build:(it,v)=>({
+      title: plain(it.t),
+      description: v.note || plain(it.b && it.b[0]) || null,
+      due_date: v.due || null,
+      priority: "Medium",
+      status: "todo",
+      ownership: "fyi",
+      waiting_on: v.who || null,
+      source: SOURCE.kind,
+      source_label: plain(it.src),
+      tags: SRC_TAG + ",delegated",
+      ai_extracted: 1
+    })
+  },
+  fyi: {
+    label:"FYI", needs:["note"], endpoint:"/tasks",
+    desc:"Undated fyi row in D1",
+    build:(it,v)=>({
+      title: "[FYI] " + plain(it.t),
+      description: v.note || plain(it.b && it.b[0]) || null,
+      status: "undated",
+      ownership: "fyi",
+      priority: "Low",
+      source: SOURCE.kind,
+      source_label: plain(it.src),
+      tags: SRC_TAG + ",fyi-context",
+      ai_extracted: 1
+    })
+  },
+  skip: { label:"Dismiss", needs:[], endpoint:null, desc:"Dismissed, nothing written" }
+};
+const PRIMARY = ["task","reply","cal","know","skip"];
+const SECONDARY = ["replied","deleg","intel","move","fyi"];
+
+/* ── token + connection ─────────────────────────────────── */
+let TOKEN = "";
+let apiState = "unknown";     // unknown | ok | badtoken | unreachable
+
+function headers(){
+  return { "Content-Type":"application/json", "Authorization":"Bearer " + TOKEN };
+}
+
+function setConn(kind, label, msg, opts){
+  opts = opts || {};
+  const c = document.getElementById("conn");
+  c.className = "conn" + (kind==="ok"?" ok":kind==="bad"?" bad":kind==="warn"?" warn":"");
+  document.getElementById("connLbl").textContent = label;
+  document.getElementById("connMsg").textContent = msg;
+  document.getElementById("tokenIn").style.display   = opts.askToken ? "" : "none";
+  document.getElementById("tokenSave").style.display = opts.askToken ? "" : "none";
+  document.getElementById("tokenClear").style.display= opts.canClear ? "" : "none";
+  document.getElementById("connRetry").style.display = opts.canRetry ? "" : "none";
+
+  const pill = document.getElementById("apiPill");
+  pill.textContent = kind==="ok" ? "API OK" : kind==="bad" ? "API DOWN" : "API ?";
+  pill.className = "pill" + (kind==="ok"?" ok":kind==="bad"?" bad":" warn");
+  apiState = kind==="ok" ? "ok" : apiState;
+  updateProgress();
+}
+
+async function checkApi(){
+  TOKEN = localStorage.getItem("eaton_token") || "";
+  if(!TOKEN){
+    apiState = "badtoken";
+    setConn("warn","Token needed",
+      "This page writes to the same Worker API as the dashboard. Paste your token — it is stored only in this browser, never in the file.",
+      {askToken:true});
+    return;
+  }
+  setConn("", "Connecting", "Checking the Worker API…", {});
+  let r;
+  try{
+    r = await fetch(API + "/tasks?limit=1", { headers: headers() });
+  }catch(e){
+    apiState = "unreachable";
+    setConn("bad","API unreachable",
+      "Could not reach " + API + " — " + e.message + ". Check your connection, then retry. Nothing has been written.",
+      {canRetry:true, canClear:true});
+    return;
+  }
+  if(r.status === 401 || r.status === 403){
+    apiState = "badtoken";
+    localStorage.removeItem("eaton_token"); TOKEN = "";
+    setConn("bad","Token rejected",
+      "The Worker returned " + r.status + ". The token is wrong or was rotated — paste the current one.",
+      {askToken:true});
+    return;
+  }
+  if(!r.ok){
+    apiState = "unreachable";
+    let t=""; try{ t = (await r.text()).slice(0,300); }catch(e){}
+    setConn("bad","API error",
+      "GET /tasks returned HTTP " + r.status + ". " + t, {canRetry:true, canClear:true});
+    return;
+  }
+  let ver = "";
+  try{
+    const h = await fetch(API + "/health", { headers: headers() });
+    if(h.ok){ const j = await h.json(); ver = j.version || j.status || ""; }
+  }catch(e){ /* version is cosmetic — a failure here does not block writes */ }
+  apiState = "ok";
+  setConn("ok","Connected",
+    "Worker reachable and the token works" + (ver?" · "+ver:"") + ". Writes go to D1 eaton-ehs-dashboard.",
+    {canClear:true});
+}
+
+document.getElementById("tokenSave").addEventListener("click", ()=>{
+  const v = document.getElementById("tokenIn").value.trim();
+  if(!v){ document.getElementById("connMsg").textContent = "Paste a token first — the field is empty."; return; }
+  localStorage.setItem("eaton_token", v);
+  document.getElementById("tokenIn").value = "";
+  checkApi();
+});
+document.getElementById("tokenIn").addEventListener("keydown", e=>{
+  if(e.key==="Enter") document.getElementById("tokenSave").click();
+});
+document.getElementById("tokenClear").addEventListener("click", ()=>{
+  localStorage.removeItem("eaton_token"); TOKEN=""; checkApi();
+});
+document.getElementById("connRetry").addEventListener("click", checkApi);
+
+/* ── local state ────────────────────────────────────────── */
 const STORE_KEY = "review-queue::" + SOURCE.window;
 let state = {};
-
-function loadState(){
-  try{ const raw = localStorage.getItem(STORE_KEY); if(raw) state = JSON.parse(raw) || {}; }
-  catch(e){ state = {}; }
-}
-function saveState(){
-  try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
-}
+function loadState(){ try{ state = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; }catch(e){ state={}; } }
+function saveState(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){} }
 
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const plain = h => { const d=document.createElement("div"); d.innerHTML=h; return (d.textContent||"").replace(/\s+/g," ").trim(); };
+function plain(h){ const d=document.createElement("div"); d.innerHTML=(h==null?"":h); return (d.textContent||"").replace(/\s+/g," ").trim(); }
+const itemKey = i => "i"+i;
 
-function itemKey(i){ return "i"+i; }
-
+/* ── render ─────────────────────────────────────────────── */
 function buildFeed(){
-  const feed = document.getElementById("feed");
   let html = "";
   SECTIONS.forEach(sec => {
-    const rows = ITEMS.map((it,i)=>({it,i})).filter(o => o.it.s === sec.id);
+    const rows = ITEMS.map((it,i)=>({it,i})).filter(o=>o.it.s===sec.id);
     if(!rows.length) return;
     html += `<section id="sec-${sec.id}">
       <div class="shead"><h2>${esc(sec.h)}</h2><span class="ct">${esc(sec.ct)}</span></div>
-      ${sec.note ? `<p class="snote">${sec.note}</p>` : ""}`;
+      ${sec.note?`<p class="snote">${sec.note}</p>`:""}`;
     rows.forEach(({it,i}) => { html += renderItem(it,i); });
     html += `</section>`;
   });
-  feed.innerHTML = html;
-  wireFeed();
+  document.getElementById("feed").innerHTML = html;
 }
 
 function renderItem(it, i){
@@ -779,14 +1038,11 @@ function renderItem(it, i){
   const body = (it.b||[]).map(p=>`<p>${p}</p>`).join("");
   const tags = (it.tags||[]).map(([t,c])=>`<span class="tag ${c||""}">${esc(t)}</span>`).join("");
   const sug = it.sug && it.sug.d;
-
   const mk = key => {
-    const d = DISPOSITIONS[key];
-    const isSug = sug === key;
-    return `<button class="d${isSug?" sug":""}" data-k="${key}" data-i="${i}"
-             aria-pressed="false" title="${esc(d.desc)}">${esc(d.label)}${isSug?" ✓":""}</button>`;
+    const d = DISPOSITIONS[key], isSug = sug===key;
+    return `<button class="d${isSug?" sug":""}" data-k="${key}" data-i="${i}" aria-pressed="false"
+             title="${esc(d.desc)}">${esc(d.label)}${isSug?" ✓":""}</button>`;
   };
-
   return `<div class="item" id="item-${k}" data-i="${i}" data-u="${it.u||"calm"}">
     <div class="ihead">
       <div class="when"><b>${it.w||""}</b>${it.wn?`<span${/overdue|now|since/i.test(it.wn)?' class="od"':""}>${esc(it.wn)}</span>`:""}</div>
@@ -795,13 +1051,11 @@ function renderItem(it, i){
         ${body}
         <p class="src">${esc(it.src||"")}</p>
         ${tags?`<div class="tags">${tags}</div>`:""}
-
         <div class="disp">
           ${PRIMARY.map(mk).join("")}
           <button class="d more" data-more="${i}" aria-expanded="false" title="More dispositions">⋯</button>
           <span class="extra" data-extra="${i}" style="display:none; gap:5px; flex-wrap:wrap;">${SECONDARY.map(mk).join("")}</span>
         </div>
-
         <div class="det" id="det-${k}"></div>
         <div class="verd" id="verd-${k}"></div>
       </div>
@@ -809,256 +1063,431 @@ function renderItem(it, i){
   </div>`;
 }
 
-function fieldsFor(key, it, cur){
-  const need = DISPOSITIONS[key].needs;
-  const s = it.sug || {};
-  const v = cur || {};
+function fieldsFor(key, it, v){
+  const need = DISPOSITIONS[key].needs, s = it.sug||{}; v = v||{};
+  const val = f => v[f] !== undefined ? v[f] : (s[f] !== undefined ? s[f] : "");
   let h = "";
   if(need.includes("who"))
-    h += `<div class="f grow"><label>Person</label><input type="text" data-f="who" value="${esc(v.who ?? s.who ?? "")}" placeholder="Name"></div>`;
-  if(need.includes("due"))
-    h += `<div class="f"><label>Due</label><input type="date" data-f="due" value="${esc(v.due ?? s.due ?? "")}"></div>`;
-  if(need.includes("date"))
-    h += `<div class="f"><label>Date</label><input type="date" data-f="date" value="${esc(v.date ?? s.date ?? "")}"></div>`;
-  if(need.includes("time"))
-    h += `<div class="f"><label>Time</label><input type="time" data-f="time" value="${esc(v.time ?? s.time ?? "")}"></div>`;
-  if(need.includes("pri")){
-    const p = v.pri ?? s.pri ?? "Medium";
-    h += `<div class="f"><label>Priority</label><select data-f="pri">` +
-         ["High","Medium","Low"].map(o=>`<option${o===p?" selected":""}>${o}</option>`).join("") +
-         `</select></div>`;
+    h += `<div class="f grow"><label>Person</label><input type="text" data-f="who" value="${esc(val("who"))}" placeholder="Full name"></div>`;
+  if(need.includes("itype")){
+    const cur = val("itype") || "working_style";
+    h += `<div class="f"><label>Intel type</label><select data-f="itype">` +
+         ENUMS.intel_type.map(o=>`<option${o===cur?" selected":""}>${o}</option>`).join("") + `</select></div>`;
   }
+  if(need.includes("due"))
+    h += `<div class="f"><label>Due</label><input type="date" data-f="due" value="${esc(val("due"))}"></div>`;
+  if(need.includes("date"))
+    h += `<div class="f"><label>Date</label><input type="date" data-f="date" value="${esc(val("date"))}"></div>`;
+  if(need.includes("time"))
+    h += `<div class="f"><label>Time</label><input type="time" data-f="time" value="${esc(val("time"))}"></div>`;
+  if(need.includes("pri")){
+    const p = val("pri") || "Medium";
+    h += `<div class="f"><label>Priority</label><select data-f="pri">` +
+         ENUMS.priority.map(o=>`<option${o===p?" selected":""}>${o}</option>`).join("") + `</select></div>`;
+  }
+  if(need.includes("cat"))
+    h += `<div class="f"><label>Category</label><input type="text" data-f="cat" value="${esc(val("cat")||"context")}"></div>`;
+  if(need.includes("area"))
+    h += `<div class="f"><label>Area</label><input type="text" data-f="area" value="${esc(val("area")||"EHS")}"></div>`;
   if(need.includes("note"))
-    h += `<div class="f grow"><label>Note for Claude</label><input type="text" data-f="note" value="${esc(v.note ?? s.note ?? "")}" placeholder="Optional detail"></div>`;
+    h += `<div class="f grow"><label>Detail</label><input type="text" data-f="note" value="${esc(val("note"))}" placeholder="Goes into the D1 row"></div>`;
   return h;
 }
 
-function setDisposition(i, key, opts){
-  const it = ITEMS[i], k = itemKey(i);
+function wireDetail(i){
+  const k = itemKey(i);
+  const det = document.getElementById("det-"+k);
+  det.querySelectorAll("[data-f]").forEach(inp=>{
+    inp.addEventListener("input", ()=>{
+      state[k][inp.dataset.f] = inp.value;
+      delete state[k].err;
+      saveState(); renderVerdict(i); updateProgress();
+    });
+  });
+}
+
+function applyDisposition(i, key, toggle){
+  const k = itemKey(i), it = ITEMS[i];
   const el = document.getElementById("item-"+k);
   const prev = state[k];
 
-  if(prev && prev.d === key && !opts?.keep){ delete state[k]; }
-  else {
-    const carry = (prev && prev.d === key) ? prev : {};
-    state[k] = Object.assign({d:key}, carry, {d:key});
-  }
+  if(prev && prev.sent){ return; }               // already written — locked
+  if(toggle && prev && prev.d===key){ delete state[k]; }
+  else { state[k] = Object.assign({}, (prev && prev.d===key) ? prev : (it.sug||{}), {d:key}); }
   saveState();
 
   const cur = state[k];
   el.classList.toggle("settled", !!cur);
+  el.classList.remove("failed");
   if(cur) el.setAttribute("data-d", cur.d); else el.removeAttribute("data-d");
-
-  el.querySelectorAll(".d[data-k]").forEach(b=>{
-    b.setAttribute("aria-pressed", String(!!cur && b.dataset.k === cur.d));
-  });
+  el.querySelectorAll(".d[data-k]").forEach(b=> b.setAttribute("aria-pressed", String(!!cur && b.dataset.k===cur.d)));
 
   const det = document.getElementById("det-"+k);
-  const verd = document.getElementById("verd-"+k);
   if(cur && DISPOSITIONS[cur.d].needs.length){
-    det.innerHTML = fieldsFor(cur.d, it, cur);
-    det.classList.add("on");
-    det.querySelectorAll("[data-f]").forEach(inp=>{
-      inp.addEventListener("input", ()=>{
-        state[k][inp.dataset.f] = inp.value;
-        saveState(); renderVerdict(i);
-      });
-    });
+    det.innerHTML = fieldsFor(cur.d, it, cur); det.classList.add("on"); wireDetail(i);
   } else { det.innerHTML=""; det.classList.remove("on"); }
 
-  renderVerdict(i);
-  updateProgress();
+  renderVerdict(i); updateProgress();
+}
+
+/* Client-side mirror of the Worker's required-field checks, so a row that would
+   400 is flagged here with a pointed message instead of failing mid-submit. */
+function validate(i){
+  const k = itemKey(i), v = state[k]; if(!v) return null;
+  const d = DISPOSITIONS[v.d]; if(!d.endpoint) return null;
+  const p = d.build(ITEMS[i], v);
+  if(d.endpoint==="/tasks"){
+    if(!p.title) return "title is empty";
+    if(p.priority && !ENUMS.priority.includes(p.priority)) return "priority must be one of " + ENUMS.priority.join(", ");
+    if(p.status && !ENUMS.status.includes(p.status)) return "status must be one of " + ENUMS.status.join(", ");
+    if(p.ownership && !ENUMS.ownership.includes(p.ownership)) return "ownership must be mine or fyi";
+    if(v.d==="reply" && !p.waiting_on) return "reply needs a person — fill in Person";
+  }
+  if(d.endpoint==="/knowledge"){
+    if(!p.category) return "knowledge needs a category";
+    if(!p.area) return "knowledge needs an area";
+    if(!p.subject) return "knowledge needs a subject";
+    if(!p.detail) return "knowledge needs detail — add a Detail note";
+  }
+  if(d.endpoint==="/intel"){
+    if(!p.person_name) return "intel needs a person name";
+    if(!ENUMS.intel_type.includes(p.intel_type)) return "intel_type must be one of " + ENUMS.intel_type.join(", ");
+    if(!p.content) return "intel needs content — add a Detail note";
+  }
+  if(d.endpoint==="/moves" && !p.description) return "leadership move needs a description";
+  return null;
 }
 
 function renderVerdict(i){
   const k = itemKey(i), cur = state[k];
   const verd = document.getElementById("verd-"+k);
-  if(!cur){ verd.classList.remove("on"); verd.innerHTML=""; return; }
+  const el = document.getElementById("item-"+k);
+  if(!cur){ verd.classList.remove("on"); verd.innerHTML=""; el.classList.remove("written","failed"); return; }
   const d = DISPOSITIONS[cur.d];
+
+  if(cur.sent){
+    el.classList.add("written"); el.classList.remove("failed");
+    verd.innerHTML = `<span class="ok">✓ WRITTEN</span><span>${esc(d.endpoint)} · row #${esc(cur.sent.id)}</span>`;
+    verd.classList.add("on"); return;
+  }
+  if(cur.err){
+    el.classList.add("failed"); el.classList.remove("written");
+    verd.innerHTML = `<span class="fail">✕ FAILED</span><span>${esc(cur.err)}</span>`;
+    verd.classList.add("on"); return;
+  }
+  el.classList.remove("written","failed");
+
+  const bad = validate(i);
   const bits = [];
   if(cur.who) bits.push(cur.who);
   if(cur.due) bits.push("due "+cur.due);
   if(cur.date) bits.push(cur.date + (cur.time?" "+cur.time:""));
   if(cur.pri) bits.push(cur.pri);
   verd.innerHTML = `<span class="vk">→ ${esc(d.label)}</span><span>${esc(d.desc)}</span>` +
-                   (bits.length?`<span>· ${esc(bits.join(" · "))}</span>`:"");
+    (bits.length?`<span>· ${esc(bits.join(" · "))}</span>`:"") +
+    (bad?`<span class="warnf">⚠ ${esc(bad)}</span>`:"");
   verd.classList.add("on");
 }
 
-function wireFeed(){
-  document.getElementById("feed").addEventListener("click", e=>{
-    const b = e.target.closest("button");
-    if(!b) return;
-    if(b.dataset.more !== undefined){
-      const span = document.querySelector(`[data-extra="${b.dataset.more}"]`);
-      const on = span.style.display === "none";
-      span.style.display = on ? "inline-flex" : "none";
-      b.setAttribute("aria-expanded", String(on));
-      return;
-    }
-    if(b.dataset.k) setDisposition(Number(b.dataset.i), b.dataset.k);
-  });
+document.getElementById("feed").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  if(b.dataset.more !== undefined){
+    const span = document.querySelector(`[data-extra="${b.dataset.more}"]`);
+    const on = span.style.display === "none";
+    span.style.display = on ? "inline-flex" : "none";
+    b.setAttribute("aria-expanded", String(on)); return;
+  }
+  if(b.dataset.k) applyDisposition(Number(b.dataset.i), b.dataset.k, true);
+});
+
+/* ── progress ───────────────────────────────────────────── */
+function counts(){
+  const c = {};
+  Object.values(state).forEach(v=>{ c[v.d]=(c[v.d]||0)+1; });
+  return c;
 }
-
+function pendingWrites(){
+  return Object.entries(state)
+    .map(([k,v])=>({ i:Number(k.slice(1)), k, v }))
+    .filter(o => DISPOSITIONS[o.v.d].endpoint && !o.v.sent);
+}
 function updateProgress(){
-  const total = ITEMS.length;
-  const counts = {};
-  Object.values(state).forEach(v=>{ counts[v.d]=(counts[v.d]||0)+1; });
-  const done = Object.keys(state).length;
-
+  const total = ITEMS.length, c = counts(), done = Object.keys(state).length;
   const colorFor = {task:"--accent",reply:"--critical",cal:"--info",know:"--know",intel:"--know",
                     replied:"--good",move:"--good",deleg:"--ink",fyi:"--mute",skip:"--mute"};
-  const bar = document.getElementById("bar");
-  bar.innerHTML = Object.keys(DISPOSITIONS)
-    .filter(k=>counts[k])
-    .map(k=>`<i style="width:${(counts[k]/total*100).toFixed(2)}%; background:var(${colorFor[k]})"></i>`)
-    .join("") + `<i style="width:${((total-done)/total*100).toFixed(2)}%; background:var(--surface-3)"></i>`;
+  document.getElementById("bar").innerHTML =
+    Object.keys(DISPOSITIONS).filter(k=>c[k])
+      .map(k=>`<i style="width:${(c[k]/total*100).toFixed(2)}%; background:var(${colorFor[k]})"></i>`).join("")
+    + `<i style="width:${((total-done)/total*100).toFixed(2)}%; background:var(--surface-3)"></i>`;
 
-  const parts = Object.keys(DISPOSITIONS).filter(k=>counts[k])
-    .map(k=>`${counts[k]} ${DISPOSITIONS[k].label.toLowerCase()}`);
+  const parts = Object.keys(DISPOSITIONS).filter(k=>c[k]).map(k=>`${c[k]} ${DISPOSITIONS[k].label.toLowerCase()}`);
   document.getElementById("ctText").innerHTML =
     `<b>${done}</b> of <b>${total}</b> decided` + (parts.length?` — ${esc(parts.join(", "))}`:"");
 
-  const actionable = (counts.task||0)+(counts.reply||0)+(counts.cal||0)+(counts.deleg||0);
+  const pend = pendingWrites();
+  const written = Object.values(state).filter(v=>v.sent).length;
+  const invalid = pend.filter(o=>validate(o.i)).length;
   document.getElementById("dockStat").innerHTML = done
-    ? `<b>${done}</b> decided · <b>${actionable}</b> will create rows · <b>${total-done}</b> left`
+    ? `<b>${pend.length}</b> to write · <b>${written}</b> written` +
+      (invalid?` · <b style="color:var(--critical)">${invalid} need a fix</b>`:"") +
+      ` · <b>${total-done}</b> undecided`
     : "Nothing decided yet";
+
+  const btn = document.getElementById("btnSubmit");
+  btn.disabled = !(pend.length && apiState==="ok");
+  btn.textContent = apiState!=="ok" ? "API not ready" : `Submit ${pend.length} to D1`;
 }
 
-/* ── payload ── */
-function buildPayload(){
-  const groups = {};
-  Object.entries(state).forEach(([k,v])=>{
-    const i = Number(k.slice(1)); const it = ITEMS[i];
-    (groups[v.d] = groups[v.d] || []).push({it, v});
-  });
+/* ── submit ─────────────────────────────────────────────── */
+let lastRun = [];
 
-  const L = [];
-  L.push("REVIEW QUEUE — DECISIONS");
-  L.push(`source: ${SOURCE.kind} · ${SOURCE.label}`);
-  L.push(`window: ${SOURCE.window}`);
-  L.push(`decided: ${Object.keys(state).length} of ${ITEMS.length}`);
-  L.push("");
-  L.push("Claude: execute the sections below. Tasks/replies/delegations become D1 rows in `tasks`;");
-  L.push("knowledge → `knowledge`; person → `people_intel`; ldr move → `leadership_moves`;");
-  L.push("calendar → real Google Calendar events plus a knowledge row. Use source_label from each item.");
-  L.push("Report back what you wrote. Do not create anything for DISMISSED or REPLIED.");
-  L.push("");
+function openSheet(){
+  const pend = pendingWrites();
+  const invalid = pend.filter(o=>validate(o.i));
+  const byEp = {};
+  pend.forEach(o=>{ const ep = DISPOSITIONS[o.v.d].endpoint; (byEp[ep]=byEp[ep]||[]).push(o); });
 
-  const order = ["task","reply","deleg","cal","know","intel","move","fyi","replied","skip"];
-  order.forEach(key=>{
-    const rows = groups[key]; if(!rows || !rows.length) return;
-    const d = DISPOSITIONS[key];
-    L.push("─".repeat(58));
-    L.push(`${d.label.toUpperCase()}  (${rows.length})  → ${d.desc}`);
-    L.push("─".repeat(58));
-    rows.forEach(({it,v})=>{
-      L.push(`• ${plain(it.t)}`);
-      const meta = [];
-      if(v.who) meta.push(`person: ${v.who}`);
-      if(v.due) meta.push(`due: ${v.due}`);
-      if(v.date) meta.push(`date: ${v.date}${v.time?" "+v.time:""}`);
-      if(v.pri) meta.push(`priority: ${v.pri}`);
-      if(meta.length) L.push(`    ${meta.join("  |  ")}`);
-      if(v.note) L.push(`    note: ${v.note}`);
-      L.push(`    source_label: ${plain(it.src)}`);
-      L.push("");
+  document.getElementById("sheetLede").textContent = invalid.length
+    ? `${pend.length} records queued. ${invalid.length} are missing a required field and will be skipped — fix them and submit again.`
+    : `${pend.length} records will be written to D1 through the Worker API. Nothing is marked done unless the API returns a row id.`;
+
+  let html = "";
+  Object.entries(byEp).forEach(([ep, rows])=>{
+    html += `<div class="plan"><h4><span>POST ${esc(ep)}</span><span>${rows.length}</span></h4>`;
+    rows.forEach(o=>{
+      const bad = validate(o.i);
+      html += `<div class="prow" id="prow-${o.k}">
+        <span class="stat ${bad?"fail":"q"}">${bad?"blocked":"queued"}</span>
+        <span class="txt">${esc(plain(ITEMS[o.i].t))}${bad?`<em>${esc(bad)}</em>`:""}</span>
+      </div>`;
     });
+    html += `</div>`;
   });
+  const skipped = Object.values(state).filter(v=>!DISPOSITIONS[v.d].endpoint).length;
+  if(skipped) html += `<div class="plan"><h4><span>Not written (dismissed / replied)</span><span>${skipped}</span></h4>
+     <div class="prow"><span class="stat q">local</span><span class="txt">Recorded as decisions only — no API call.</span></div></div>`;
 
-  const undecided = ITEMS.map((it,i)=>({it,i})).filter(o=>!state[itemKey(o.i)]);
-  if(undecided.length){
-    L.push("─".repeat(58));
-    L.push(`NOT DECIDED  (${undecided.length})  → left for the next pass`);
-    L.push("─".repeat(58));
-    undecided.forEach(({it})=> L.push(`• ${plain(it.t)}`));
-    L.push("");
-  }
-  return L.join("\n");
+  document.getElementById("planBody").innerHTML = html;
+  document.getElementById("banner").className = "banner";
+  const go = document.getElementById("btnGo");
+  go.style.display = "";
+  const writable = pend.length - invalid.length;
+  go.disabled = writable === 0;
+  go.textContent = writable === 0
+    ? (pend.length ? "Nothing valid to write — fix the blocked rows" : "Nothing queued")
+    : `Write ${writable} record${writable===1?"":"s"}`;
+  document.getElementById("btnRetry").style.display = "none";
+  document.getElementById("btnReport").style.display = "none";
+  document.getElementById("modal").classList.add("on");
 }
 
-/* ── wiring ── */
+function setRow(k, cls, text, errText){
+  const row = document.getElementById("prow-"+k); if(!row) return;
+  row.querySelector(".stat").className = "stat " + cls;
+  row.querySelector(".stat").textContent = text;
+  if(errText){
+    let em = row.querySelector("em");
+    if(!em){ em = document.createElement("em"); row.querySelector(".txt").appendChild(em); }
+    em.textContent = errText;
+  }
+}
+
+function banner(cls, html){
+  const b = document.getElementById("banner");
+  b.className = "banner on " + cls; b.innerHTML = html;
+}
+
+/* One POST. Returns {ok, id} or {ok:false, err}. A 2xx with no row id is treated
+   as a FAILURE, not a success — that is the exact anti-pattern that hid the
+   /otter/extract and digest outages. */
+async function postOne(endpoint, payload){
+  let res;
+  try{
+    res = await fetch(API + endpoint, { method:"POST", headers: headers(), body: JSON.stringify(payload) });
+  }catch(e){
+    return { ok:false, err:"NETWORK — " + e.message + " (nothing was written)" };
+  }
+  let text = "";
+  try{ text = await res.text(); }catch(e){}
+  if(!res.ok){
+    let msg = text.slice(0,240);
+    try{ const j = JSON.parse(text); msg = j.error || j.message || msg; }catch(e){}
+    if(res.status===401 || res.status===403){
+      apiState = "badtoken"; localStorage.removeItem("eaton_token"); TOKEN="";
+    }
+    return { ok:false, err:"HTTP " + res.status + " — " + (msg || res.statusText) };
+  }
+  let body;
+  try{ body = JSON.parse(text); }
+  catch(e){ return { ok:false, err:"HTTP " + res.status + " but the response was not JSON — " + text.slice(0,160) }; }
+  const id = body && (body.id != null ? body.id : (body.result && body.result.id));
+  if(id == null){
+    return { ok:false, err:"HTTP " + res.status + " but no row id came back — treating as NOT written. Body: " + text.slice(0,160) };
+  }
+  return { ok:true, id };
+}
+
+async function runWrites(onlyFailed){
+  const go = document.getElementById("btnGo");
+  const retry = document.getElementById("btnRetry");
+  go.disabled = true; retry.disabled = true;
+
+  let rows = pendingWrites().filter(o=>!validate(o.i));
+  if(onlyFailed) rows = rows.filter(o=>o.v.err);
+  if(!rows.length){ banner("bad","<b>Nothing to write.</b> Every queued row is either blocked or already written."); go.disabled=false; retry.disabled=false; return; }
+
+  banner("busy", `<b>Writing…</b> 0 of ${rows.length}`);
+  let ok=0, fail=0, stoppedAt=-1;
+  lastRun = [];
+
+  for(let n=0; n<rows.length; n++){
+    const o = rows[n];
+    const d = DISPOSITIONS[o.v.d];
+    setRow(o.k, "go", "writing…");
+    const payload = d.build(ITEMS[o.i], o.v);
+    const r = await postOne(d.endpoint, payload);
+    if(r.ok){
+      ok++;
+      state[o.k].sent = { id:r.id, endpoint:d.endpoint, at:new Date().toISOString() };
+      delete state[o.k].err;
+      setRow(o.k, "ok", "row #"+r.id);
+    }else{
+      fail++;
+      state[o.k].err = r.err;
+      setRow(o.k, "fail", "failed", r.err);
+      lastRun.push({ title: plain(ITEMS[o.i].t), endpoint:d.endpoint, err:r.err, payload });
+    }
+    saveState(); renderVerdict(o.i);
+    banner("busy", `<b>Writing…</b> ${n+1} of ${rows.length} — ${ok} ok, ${fail} failed`);
+    if(apiState==="badtoken"){ stoppedAt = n+1; break; }
+  }
+
+  /* Rows the loop never reached because it aborted. These are NOT failures and NOT
+     successes — they were never attempted, and saying so is the whole point. */
+  const unattempted = stoppedAt >= 0 ? rows.length - stoppedAt : 0;
+  if(unattempted){
+    rows.slice(stoppedAt).forEach(o => setRow(o.k, "q", "not attempted"));
+  }
+
+  updateProgress();
+  if(stoppedAt >= 0){
+    banner("bad", `<b>Run stopped after ${stoppedAt} of ${rows.length}.</b> The token was rejected mid-run, so <b>${unattempted} rows were never attempted</b> — they are still queued and unwritten. ${ok} written, ${fail} failed so far. Re-enter the token at the top of the page, then submit again.`);
+    retry.style.display = ""; retry.textContent = `Retry failed (${fail})`;
+    document.getElementById("btnReport").style.display = fail ? "" : "none";
+    go.style.display = "";
+  }else if(fail===0){
+    banner("ok", `<b>All ${ok} records written to D1.</b> They are live on the dashboard — refresh it to see them.`);
+    retry.style.display = "none"; document.getElementById("btnReport").style.display="none";
+    go.style.display = "none";
+  }else{
+    banner("bad", `<b>${ok} written, ${fail} failed.</b> Failed rows are marked in red both here and in the list behind this sheet — they were NOT written and can be retried. Nothing was double-written; successful rows are locked.`);
+    retry.style.display = ""; retry.textContent = `Retry failed (${fail})`;
+    document.getElementById("btnReport").style.display = "";
+    go.style.display = "none";
+  }
+  go.disabled = false; retry.disabled = false;
+  if(apiState==="badtoken") checkApi();
+}
+
+/* ── .ics export for calendar dispositions ──────────────── */
+function icsEscape(s){ return String(s||"").replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\n/g,"\\n"); }
+function stamp(d){ return d.replace(/-/g,""); }
+function buildIcs(){
+  const rows = Object.entries(state).map(([k,v])=>({i:Number(k.slice(1)),v})).filter(o=>o.v.d==="cal" && o.v.date);
+  if(!rows.length) return null;
+  const L = ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Eaton EHS CMD//Review Queue//EN","CALSCALE:GREGORIAN"];
+  rows.forEach((o,n)=>{
+    const it = ITEMS[o.i], v = o.v;
+    L.push("BEGIN:VEVENT");
+    L.push("UID:review-" + SOURCE.window.replace(/[^0-9]/g,"") + "-" + n + "@eaton-ehs");
+    L.push("DTSTAMP:" + new Date().toISOString().replace(/[-:]/g,"").split(".")[0] + "Z");
+    if(v.time){
+      const s = stamp(v.date) + "T" + v.time.replace(":","") + "00";
+      const [hh,mm] = v.time.split(":").map(Number);
+      const end = String((hh+1)%24).padStart(2,"0") + String(mm).padStart(2,"0") + "00";
+      L.push("DTSTART:" + s);
+      L.push("DTEND:" + stamp(v.date) + "T" + end);
+    }else{
+      L.push("DTSTART;VALUE=DATE:" + stamp(v.date));
+    }
+    L.push("SUMMARY:" + icsEscape(plain(it.t)));
+    L.push("DESCRIPTION:" + icsEscape((v.note||"") + "\n\nSource: " + plain(it.src)));
+    L.push("END:VEVENT");
+  });
+  L.push("END:VCALENDAR");
+  return L.join("\r\n");
+}
+document.getElementById("btnIcs").addEventListener("click", ()=>{
+  const ics = buildIcs();
+  if(!ics){ alert("No calendar items yet — mark something as Calendar with a date first."); return; }
+  const blob = new Blob([ics], {type:"text/calendar;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "ehs-review-" + SOURCE.window.split("..")[1] + ".ics";
+  a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+});
+
+/* ── wiring ─────────────────────────────────────────────── */
 document.getElementById("acceptAll").addEventListener("click", ()=>{
   ITEMS.forEach((it,i)=>{
     if(!it.sug || !it.sug.d) return;
     const k = itemKey(i);
     if(state[k]) return;
-    state[k] = Object.assign({}, it.sug);
-    saveState();
-    const el = document.getElementById("item-"+k);
-    el.classList.add("settled"); el.setAttribute("data-d", it.sug.d);
-    el.querySelectorAll(".d[data-k]").forEach(b=>b.setAttribute("aria-pressed", String(b.dataset.k===it.sug.d)));
-    const det = document.getElementById("det-"+k);
-    if(DISPOSITIONS[it.sug.d].needs.length){
-      det.innerHTML = fieldsFor(it.sug.d, it, state[k]);
-      det.classList.add("on");
-      det.querySelectorAll("[data-f]").forEach(inp=>{
-        inp.addEventListener("input", ()=>{ state[k][inp.dataset.f]=inp.value; saveState(); renderVerdict(i); });
-      });
-    }
-    renderVerdict(i);
+    applyDisposition(i, it.sug.d, false);
   });
   updateProgress();
 });
-
 document.getElementById("resetAll").addEventListener("click", ()=>{
+  const written = Object.values(state).filter(v=>v.sent).length;
+  const msg = written
+    ? `Clear all decisions?\n\n${written} rows are already written to D1 — clearing here does NOT delete them from the database. You would have to remove those rows from the dashboard yourself.`
+    : "Clear all decisions on this page?";
+  if(!confirm(msg)) return;
   state = {}; saveState(); buildFeed(); restore(); updateProgress();
 });
 
-const modal = document.getElementById("modal");
-document.getElementById("btnBuild").addEventListener("click", ()=>{
-  document.getElementById("out").value = buildPayload();
-  modal.classList.add("on");
-  document.getElementById("out").focus();
+document.getElementById("btnSubmit").addEventListener("click", openSheet);
+document.getElementById("btnGo").addEventListener("click", ()=>runWrites(false));
+document.getElementById("btnRetry").addEventListener("click", ()=>runWrites(true));
+document.getElementById("btnReport").addEventListener("click", async ()=>{
+  const txt = "REVIEW QUEUE — FAILED WRITES\n" + SOURCE.label + "\n\n" +
+    lastRun.map(r=>`• ${r.title}\n  POST ${r.endpoint}\n  ${r.err}\n  payload: ${JSON.stringify(r.payload)}`).join("\n\n");
+  const btn = document.getElementById("btnReport");
+  try{ await navigator.clipboard.writeText(txt); btn.textContent = "Copied"; }
+  catch(e){ btn.textContent = "Copy failed — see console"; console.log(txt); }
+  setTimeout(()=>{ btn.textContent = "Copy failure report"; }, 2200);
 });
+
+const modal = document.getElementById("modal");
 document.getElementById("btnClose").addEventListener("click", ()=> modal.classList.remove("on"));
 modal.addEventListener("click", e=>{ if(e.target===modal) modal.classList.remove("on"); });
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") modal.classList.remove("on"); });
 
-document.getElementById("btnCopy").addEventListener("click", async ()=>{
-  const ta = document.getElementById("out"); const btn = document.getElementById("btnCopy");
-  try{ await navigator.clipboard.writeText(ta.value); btn.textContent="Copied"; }
-  catch(e){ ta.select(); btn.textContent="Press ⌘C / Ctrl+C"; }
-  setTimeout(()=>{ btn.textContent="Copy to clipboard"; }, 2200);
-});
-
-async function doDownload(){
-  const text = buildPayload();
-  const name = `review-${SOURCE.kind}-${SOURCE.window.replace(/\.\./g,"_")}.txt`;
-  if(window.claude && window.claude.downloads && window.claude.downloads.save){
-    try{ await window.claude.downloads.save({filename:name, data:text}); return; }
-    catch(e){ /* viewer declined or unsupported — fall through */ }
-  }
-  const blob = new Blob([text], {type:"text/plain"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob); a.download = name; a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
-}
-document.getElementById("btnDownload").addEventListener("click", doDownload);
-document.getElementById("btnDownload2").addEventListener("click", doDownload);
-
 function restore(){
   Object.keys(state).forEach(k=>{
     const i = Number(k.slice(1));
-    if(!ITEMS[i]) { delete state[k]; return; }
+    if(!ITEMS[i]){ delete state[k]; return; }
     const cur = state[k];
     const el = document.getElementById("item-"+k); if(!el) return;
     el.classList.add("settled"); el.setAttribute("data-d", cur.d);
     el.querySelectorAll(".d[data-k]").forEach(b=>b.setAttribute("aria-pressed", String(b.dataset.k===cur.d)));
     const det = document.getElementById("det-"+k);
     if(DISPOSITIONS[cur.d].needs.length){
-      det.innerHTML = fieldsFor(cur.d, ITEMS[i], cur);
-      det.classList.add("on");
-      det.querySelectorAll("[data-f]").forEach(inp=>{
-        inp.addEventListener("input", ()=>{ state[k][inp.dataset.f]=inp.value; saveState(); renderVerdict(i); });
-      });
+      det.innerHTML = fieldsFor(cur.d, ITEMS[i], cur); det.classList.add("on"); wireDetail(i);
     }
     renderVerdict(i);
   });
 }
 
+window.addEventListener("beforeunload", e=>{
+  if(pendingWrites().length){ e.preventDefault(); e.returnValue = ""; }
+});
+
 loadState();
 buildFeed();
 restore();
 updateProgress();
+checkApi();
 </script>
+</body>
+</html>
