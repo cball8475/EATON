@@ -1,0 +1,116 @@
+# Rotates the eaton-ehs-api bearer token. Run from the Actions tab (manual
+# dispatch only — rotating is a deliberate act, not a side effect of a push).
+#
+# Why this lives in CI: Claude cloud sessions have no CLOUDFLARE_API_TOKEN
+# (fsc-credentials registry §6), so GitHub's runners are the one place that
+# credential already exists — the same repo secret deploy-worker.yml uses.
+# It needs Account Secrets Store *Edit* (Edit is also what lets deploys keep
+# the AUTH_TOKEN binding), Workers Scripts Edit, and D1 Edit.
+#
+# One run, in order:
+#   1. mints a fresh 64-hex token (masked — never appears in logs)
+#   2. Secrets Store: updates EATON_TOKEN, the value the worker validates
+#      against per-request via the AUTH_TOKEN binding (no redeploy needed)
+#   3. Worker secret: puts the same value into API_TOKEN (documented fallback)
+#   4. D1: upserts app_config key EATON_TOKEN — the self-serve copy sessions
+#      bootstrap from (see infra/env.sh)
+#   5. verifies /stats returns 200 with the new token AND 401 with the
+#      leaked historical one (the bearer committed to env.sh until 66cf834 —
+#      public git history serves it forever, so it must stay dead)
+#
+# After a green run: cached tokens are stale by design. Shells:
+# `eaton_refresh_token` (infra/env.sh). Dashboard: DevTools console →
+# localStorage.removeItem('eaton_token') → reload → it re-prompts.
+name: Rotate EATON API token
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  CF_ACCOUNT_ID: 37821191a8c1419e055c2c0a30546589
+  STORE_ID: 80c48360a0e54dd69425da2dfbde21ad
+  WORKER_NAME: eaton-ehs-api
+  D1_NAME: eaton-ehs-dashboard
+  API_BASE: https://eaton-ehs-api.cball8475.workers.dev
+
+jobs:
+  rotate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: the verify step digs the leaked pre-66cf834 token out
+          # of git to prove rotation actually killed it.
+          fetch-depth: 0
+
+      - name: Mint new token
+        run: |
+          NEW=$(openssl rand -hex 32)
+          echo "::add-mask::$NEW"
+          echo "NEW_TOKEN=$NEW" >> "$GITHUB_ENV"
+
+      - name: Update Secrets Store EATON_TOKEN
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          base="https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/secrets_store/stores/$STORE_ID/secrets"
+          SID=$(curl -sS -H "Authorization: Bearer $CF_API_TOKEN" "$base?per_page=100" \
+            | jq -r '.result[] | select(.name=="EATON_TOKEN") | .id')
+          if [ -z "$SID" ]; then
+            echo "::error::Secret EATON_TOKEN not found in store $STORE_ID"
+            exit 1
+          fi
+          resp=$(curl -sS -X PATCH \
+            -H "Authorization: Bearer $CF_API_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d "{\"value\":\"$NEW_TOKEN\"}" \
+            "$base/$SID")
+          if [ "$(echo "$resp" | jq -r '.success')" != "true" ]; then
+            # Response metadata only — Secrets Store never echoes values back.
+            echo "::error::Secrets Store update failed: $(echo "$resp" | jq -c '.errors')"
+            exit 1
+          fi
+          echo "Secrets Store EATON_TOKEN updated."
+
+      - name: Sync worker fallback secret API_TOKEN
+        working-directory: infra
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 37821191a8c1419e055c2c0a30546589
+        run: printf '%s' "$NEW_TOKEN" | npx -y wrangler secret put API_TOKEN --name "$WORKER_NAME"
+
+      - name: Update D1 self-serve copy (app_config)
+        working-directory: infra
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 37821191a8c1419e055c2c0a30546589
+        run: |
+          # Token is hex-only, so inlining it in SQL is quote-safe. Masked in logs.
+          npx -y wrangler d1 execute "$D1_NAME" --remote --command \
+            "INSERT INTO app_config (key, value) VALUES ('EATON_TOKEN', '$NEW_TOKEN') ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')"
+
+      - name: Verify new token live, leaked token dead
+        run: |
+          OLD=$(git show 66cf834~1:infra/env.sh | grep -oP "EATON_TOKEN='\K[^']+" || true)
+          # Secrets Store propagation takes ~30-45s (kb/lessons.md 2026-07-25) —
+          # poll until the new value is accepted AND the leaked one is rejected.
+          for i in $(seq 1 12); do
+            new_code=$(curl -s -m 15 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $NEW_TOKEN" "$API_BASE/stats")
+            old_code=401
+            if [ -n "$OLD" ]; then
+              old_code=$(curl -s -m 15 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $OLD" "$API_BASE/stats")
+            fi
+            echo "attempt $i: new=$new_code leaked-old=$old_code"
+            if [ "$new_code" = "200" ] && [ "$old_code" = "401" ]; then
+              echo "Rotation verified: new token accepted, leaked token rejected."
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::Rotation did not verify within 3 minutes (new=$new_code, leaked-old=$old_code)."
+          echo "::error::If new=401 the store write may not have propagated or the wrong store/secret was updated; if leaked-old=200 the worker is still validating the compromised value."
+          exit 1

@@ -60,7 +60,7 @@ Cloudflare Pages: free. Cloudflare Access: free up to 50 users. (Netlify passwor
 **URL:** https://eaton-ehs-api.cball8475.workers.dev
 **Account ID:** `37821191a8c1419e055c2c0a30546589`
 **D1 Database ID:** `62ce85d7-0cc1-4832-aa57-d5b09ceaa132`
-**Auth:** Bearer token — source of truth is `infra/env.sh` (`EATON_TOKEN`)
+**Auth:** Bearer token — source of truth is the Cloudflare Secrets Store secret `EATON_TOKEN` (bound as `AUTH_TOKEN`; `API_TOKEN` worker secret is the fallback). Sessions self-serve the value from D1 `app_config` — see `infra/env.sh`. Rotate ONLY via the **Rotate EATON API token** Actions workflow (`.github/workflows/rotate-token.yml`): it updates Secrets Store + `API_TOKEN` + `app_config` together and fails unless the new token works AND the leaked historical one is rejected. After a rotation: shells run `eaton_refresh_token`; dashboard needs `localStorage.removeItem('eaton_token')` → reload → re-enter.
 
 ### Deploy pattern (preferred: wrangler — preserves secrets)
 ```bash
@@ -157,6 +157,7 @@ Deploy-before-migration is safe: /search returns a 503 hint, knowledge/scoreboar
 ---
 
 ## Credential Locations
-- Cloudflare API token: Claude Code environment variable `CLOUDFLARE_API_TOKEN` (claude.ai/code → environment settings; wrangler picks it up — added 2026-07-24). Not committable: GitHub push protection rejects `cfat_` tokens.
-- All Worker secrets: set via Cloudflare API (see fsc-credentials skill for values)
+- EATON bearer: Secrets Store `EATON_TOKEN` (authoritative) + D1 `app_config` key `EATON_TOKEN` (self-serve copy for sessions; `env.sh` resolves it automatically, or read it via Cloudflare MCP `d1_database_query`). Rotation: the Rotate EATON API token workflow.
+- Cloudflare API token (`CLOUDFLARE_API_TOKEN`): GitHub Actions repo secret (drives `deploy-worker.yml` + `rotate-token.yml`) and Charlie's local shells. **NOT in Claude cloud sessions** — the 2026-07-24 note claiming sessions get it automatically was wrong (confirmed absent 2026-07-25). Not committable: GitHub push protection rejects `cfat_` tokens.
+- All other Worker secrets: write-only in Cloudflare (names + locations in the fsc-credentials skill registry — it stores no values)
 - Never ask Charlie for a GitHub PAT — use florence-crm-api /github-push endpoint
