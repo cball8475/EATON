@@ -1027,7 +1027,11 @@ async function doDownload(){
   const name = `review-${SOURCE.kind}-${SOURCE.window.replace(/\.\./g,"_")}.txt`;
   if(window.claude && window.claude.downloads && window.claude.downloads.save){
     try{ await window.claude.downloads.save({filename:name, data:text}); return; }
-    catch(e){ /* viewer declined or unsupported — fall through */ }
+    catch(e){
+      /* "declined" means no — honour it. Anything else is the capability
+         being unusable here, so fall through to the Blob download. */
+      if(e && e.code === "declined") return;
+    }
   }
   const blob = new Blob([text], {type:"text/plain"});
   const a = document.createElement("a");
