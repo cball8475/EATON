@@ -1,5 +1,17 @@
 # Eaton EHS Command Center — Claude Code
 
+## Scope — Read This First If Other Repos Are Attached
+
+Claude Code auto-loads the `CLAUDE.md` of **every** attached repo, with no notion of which one a session is "about." A session with EATON and `skills` attached loads both files at once (verified 2026-07-30: both appeared in one session's project instructions). So decide what applies before acting on anything below.
+
+**Applies in every session, whatever the repo:** the Communication Rules. They describe how Charlie wants to be written to, not anything Eaton-specific.
+
+**Applies only when the session is doing EATON work** — everything else in this file: the Session Start Protocol, the safety-number rule, infra IDs, the API access pattern, people, priorities, targets, working rules. A session is doing EATON work when the working directory is this repo, when the request concerns Eaton EHS, safety metrics, the worker, or D1, or when a slash command from this repo is invoked.
+
+If the session is about `skills`, `site-admin`, `lwvnewportcounty`, or `cball8475.github.io`, **skip the rest of this file.** Don't source `infra/env.sh`, don't hit the API, don't open with an Eaton catch-up. Those repos have their own instructions, or none.
+
+When genuinely ambiguous, ask which repo before running the catch-up — one question beats an unwanted API call and a brief about the wrong project.
+
 ## Who You're Working With
 
 Charlie Ball. Sr. EHS Engineer at Eaton's Sumter, SC facility. Started May 4, 2026. Reports to Kate Fowler (EHS Manager). Charlie is on a decided succession track to take over as EHS Manager — Kate is transitioning out over 6–12 months.
@@ -28,7 +40,9 @@ Past the onboarding window as of August 2026. Don't frame work as a 30/60/90-day
 
 ## Session Start Protocol — Catch Up Before Acting
 
-This file is the only thing a session loads automatically. Everything else — tasks, scoreboard, lessons, intel — sits unread until something fetches it, which means a session that skips this step is working from a stale brain. Before substantive work:
+**Only when this session is doing EATON work** (see Scope above). If it's about another attached repo, skip this section entirely.
+
+This file is the only thing an EATON session loads automatically. Everything else — tasks, scoreboard, lessons, intel — sits unread until something fetches it, which means a session that skips this step is working from a stale brain. Before substantive work:
 
 1. `source infra/env.sh` — resolves the token (self-serve; never ask Charlie for it).
 2. `eaton /brief | jq .` — one composite call: task counts, open/overdue/blocked, scoreboard, recent intel, and `reflections.alert`.
