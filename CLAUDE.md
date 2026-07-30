@@ -26,6 +26,17 @@ Past the onboarding window as of August 2026. Don't frame work as a 30/60/90-day
 
 **Execution preference:** Act autonomously. Push to D1, deploy via MCP/CLI, run shell commands. Don't ask Charlie to do things manually. Exception: debrief workflow — present extracted data for review first, push only after explicit approval.
 
+## Session Start Protocol — Catch Up Before Acting
+
+This file is the only thing a session loads automatically. Everything else — tasks, scoreboard, lessons, intel — sits unread until something fetches it, which means a session that skips this step is working from a stale brain. Before substantive work:
+
+1. `source infra/env.sh` — resolves the token (self-serve; never ask Charlie for it).
+2. `eaton /brief | jq .` — one composite call: task counts, open/overdue/blocked, scoreboard, recent intel, and `reflections.alert`.
+3. Read `kb/lessons.md` — at minimum any entry newer than the conversation's last session. The failure log exists so mistakes don't repeat; an unread lesson is a scheduled repeat.
+4. Open the first substantive reply with anything that needs attention: non-null `reflections.alert`, overdue spikes, a stale scoreboard (`stale`/`age_days`), new lessons. One line each, no ceremony.
+
+Skip this only for a pure one-shot that touches no EATON data or infrastructure. When in doubt, catch up — it costs one API call and one file read. If the Worker is down, the same data comes from D1 via the Cloudflare MCP (`d1_database_query`), no token needed.
+
 ## Never Quote a Safety Number From Memory
 
 TRIR, recordables, lost-time, near misses, man-hours, observations, positive interrupters, forklift counts: **`GET /scoreboard` before stating any of them.** Not `/stats` — `/stats` has no safety metrics at all, it counts D1 rows.
@@ -213,7 +224,7 @@ Where data lives. When facts disagree, the authoritative source wins.
 
 - **`/scoreboard`** — sole authority for every safety metric. See the rule near the top of this file.
 - **D1** (via Worker API) — authoritative for everything else dynamic: tasks, people, knowledge, intel, leadership_moves, weekly_reflections. Always pull fresh; don't cache those facts here.
-- **CLAUDE.md** (this file) — authoritative for stable rules: communication style, infra IDs, working-relationship notes, standing priorities, targets. Auto-loaded every session. **The filename has to stay capitalized** — Claude Code only auto-loads `CLAUDE.md`, and on Linux and cloud sessions a lowercase `claude.md` is silently never read.
+- **CLAUDE.md** (this file) — authoritative for stable rules: communication style, infra IDs, working-relationship notes, standing priorities, targets. Auto-loaded every session — and the *only* thing auto-loaded, which is why the Session Start Protocol near the top of this file exists. **The filename has to stay capitalized** — Claude Code only auto-loads `CLAUDE.md`, and on Linux and cloud sessions a lowercase `claude.md` is silently never read.
 - **ref/eaton-stable.md** — facility procedures (PPE, MOC, fab flows, EHS systems, full shift-supervisor roster, environmental). Read on demand for operational questions.
 - **ref/debrief-protocol.md** — user-facing copy-paste prompt. Charlie's tool, not Claude's reference.
 - **kb/lessons.md** — active failure log. The only `.md` file ever appended to. Force-read at `/morning` if updated since the last session.
