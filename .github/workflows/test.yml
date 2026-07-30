@@ -1,0 +1,40 @@
+# Runs the worker's unit tests on every push and PR.
+#
+# Exists because the weekly-reflection automation (v3.10.0) is a watchdog, and a
+# broken watchdog is worse than none — it reports "all clear" while the record it
+# guards goes missing. The suite pins the behaviour that makes it trustworthy:
+# gap detection fires, drafts stay labelled, the cron is idempotent, /stats
+# survives a pre-migration table, and every registered cron has a handler.
+#
+# No dependencies to install: the tests use node:sqlite from the stdlib.
+name: Tests
+
+on:
+  # Only `push` — with both triggers every PR commit ran the suite twice for
+  # the same sha, which is pure duplicate CI.
+  push:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Worker syntax check
+        run: node --check infra/worker-api.mjs
+
+      # Covers the cron-registration check too (suite section 9): every cron in
+      # wrangler.toml must have an explicit case in scheduled().
+      #
+      # That check was briefly duplicated here as a shell loop, which was itself
+      # a bug worth remembering: `for c in $(grep ...)` leaves the substitution
+      # unquoted, so a cron like "0 14 * * 5" word-split AND each `*` glob-expanded
+      # against the repo root — CI reported crons named "kb", "readme.md" and
+      # "index.html". The JS assertion can't glob, so it stays the only one.
+      - name: Weekly-reflection automation tests
+        run: node infra/reflections.test.mjs

@@ -8,7 +8,7 @@ Weekly review. Run Friday afternoon before leaving.
 ```bash
 source infra/env.sh   # EATON_API + EATON_TOKEN + `eaton` helper
 ```
-Compute `SINCE` = 7 days before today (YYYY-MM-DD). Auth: the Worker checks the Secrets Store secret `EATON_TOKEN` (bound as `AUTH_TOKEN`), not the per-Worker `API_TOKEN` — on a 401 see `kb/lessons.md` 2026-07-10. Data also queryable directly from D1 (db `62ce85d7-0cc1-4832-aa57-d5b09ceaa132`) via the Cloudflare MCP if the Worker is down.
+Compute `SINCE` = 7 days before today (YYYY-MM-DD). Auth: the Worker checks the Secrets Store secret `EATON_TOKEN` (bound as `AUTH_TOKEN`), not the per-Worker `API_TOKEN`. env.sh resolves the value itself (env var → `~/.fsc/eaton.token` → D1 `app_config`); on a 401 after a rotation run `eaton_refresh_token`. See `kb/lessons.md` 2026-07-10 and 2026-07-29. Data also queryable directly from D1 (db `62ce85d7-0cc1-4832-aa57-d5b09ceaa132`) via the Cloudflare MCP if the Worker is down.
 
 ## Step 1: Pull deltas (targeted, not full dumps)
 ```bash
@@ -53,23 +53,31 @@ From the last `/knowledge?q=audit-baseline` response:
 
 The full semantic audit lives in `/audit` — heavy fetch, not part of the weekly default.
 
-## Step 7b: Weekly reflection — capture to D1
-Once per week, write a reflection (the influence-vs-execution record Laura cares about for succession). Compute `WEEK_OF` = Monday of the current week.
+## Step 7b: Weekly reflection — revise the draft, don't create one
+The reflection is the influence-vs-execution record Laura tracks for succession. **As of v3.10.0 a Friday 21:00 UTC cron auto-drafts it, so the row usually already exists** with `status='auto-draft'` and fields computed from the week's real signals. Your job is to turn that draft into something true, not to author from scratch.
+
 ```bash
-WEEK_OF=$(date --date="last monday" +%Y-%m-%d)   # or this Monday if today is Monday
-eaton "/reflections?since=$WEEK_OF" | jq .
+eaton /reflections/health | jq .          # missing_weeks, awaiting_review, alert
 ```
-If a row for this week exists, note it and skip. Otherwise draft each field from the week's real signals (moves = influence, closed tasks = execution, intel/knowledge = learned), keep to 1–2 sentences, present to Charlie, then push on approval:
-```bash
-eaton /reflections -X POST -H 'Content-Type: application/json' -d '{
-  "week_of":"'"$WEEK_OF"'",
-  "influenced_vs_executed":"...",
-  "clarity_created":"...",
-  "learned_about_eaton":"...",
-  "time_allocation_note":"...",
-  "source_label":"/weekly '"$WEEK_OF"'"
-}' | jq .
-```
+
+Then:
+
+- **`awaiting_review` contains this week** → read the draft, rewrite each field in Charlie's voice from the week's real signals (moves = influence, closed tasks = execution, intel/knowledge = learned), keep to 1–2 sentences each, present to Charlie, and on approval PATCH it — including `status` so it stops nagging:
+  ```bash
+  eaton /reflections/<id> -X PATCH -H 'Content-Type: application/json' -d '{
+    "influenced_vs_executed":"...",
+    "clarity_created":"...",
+    "learned_about_eaton":"...",
+    "time_allocation_note":"...",
+    "source_label":"/weekly <WEEK_OF> (revised)",
+    "status":"confirmed"
+  }' | jq .
+  ```
+- **`this_week_status` is `confirmed`** → already done. Note it and move on.
+- **`this_week_status` is `missing`** → the cron didn't run. That is a real failure, not a nudge: say so in the output, then draft it by hand with `POST /reflections/draft` (writes the computed draft immediately) and revise as above.
+- **`missing_weeks` is non-empty** → weeks were lost before the automation existed. Surface the list; **don't back-fill silently.** A reflection is evidence Laura reads, so inventing past weeks is worse than an honest gap. Ask Charlie whether he wants a computed draft for any of them (`POST /reflections/draft?week_of=YYYY-MM-DD`).
+
+Never `POST /reflections` for a week that already has a row — the endpoint returns 409 with the existing id. One row per week; PATCH to revise.
 
 ## Step 8: Output
 ```
@@ -97,7 +105,8 @@ WEEKLY REVIEW — Week of [Monday date]
   → ✓ Last audit: [date]   OR   ⚠ No audit in [N] days — run /audit
 
 📓 REFLECTION:
-  → [captured for week of [date] | already on file | drafted — awaiting approval]
+  → [confirmed for week of [date] | draft revised + confirmed | ⚠ CRON DID NOT RUN — drafted by hand]
+  → [⚠ N earlier weeks missing: [list] — offer a computed draft, never back-fill silently]
 
 🎯 NEXT WEEK PRIORITIES:
   1. [highest value action]
@@ -108,4 +117,5 @@ WEEKLY REVIEW — Week of [Monday date]
 ## Rules
 - No full-body `/export`/`/knowledge`/`/intel`/`/people` fetches. Use `?since=` + `?fields=`.
 - If Charlie says "run the audit too" / "/weekly --audit", chain into `/audit` after Step 8.
-- Reflection is once per week, keyed by `week_of` (Monday). Never write a second row — PATCH `/reflections/:id` to revise.
+- Reflection is once per week, keyed by `week_of` (Monday). Never write a second row — PATCH `/reflections/:id` to revise. The Friday cron drafts it; `/weekly` confirms it.
+- A missing reflection week is a reported failure, not a silent skip. If `/reflections/health` shows a gap, it goes in the output.

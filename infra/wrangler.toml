@@ -28,4 +28,10 @@ index_name = "eaton-memory"
 
 [triggers]
 # Friday 14:00 UTC — weekly digest email. Monday 12:00 UTC — D1 backup to GitHub.
-crons = ["0 14 * * 5", "0 12 * * 1"]
+# Friday 21:00 UTC (5pm ET) — auto-draft the weekly reflection if /weekly didn't
+# already write one. Runs after the digest and after Charlie's own Friday review.
+#
+# Every cron listed here MUST have an explicit `case` in the worker's scheduled()
+# switch. An unhandled trigger throws by design rather than falling through to
+# another job's handler — see the v3.10.0 changelog note.
+crons = ["0 14 * * 5", "0 12 * * 1", "0 21 * * 5"]
