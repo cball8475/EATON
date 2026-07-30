@@ -10,7 +10,7 @@ source infra/env.sh   # exports EATON_API + EATON_TOKEN, defines the `eaton` hel
 eaton /health         # confirm auth works (200). If /stats 401s, see FALLBACK below.
 ```
 
-**Auth note:** the Worker checks the **Secrets Store** secret `EATON_TOKEN` (bound as `AUTH_TOKEN`), NOT the per-Worker `API_TOKEN` var. On a 401, the token in `infra/env.sh` no longer matches that Secrets Store value. See `kb/lessons.md` 2026-07-10.
+**Auth note:** the Worker checks the **Secrets Store** secret `EATON_TOKEN` (bound as `AUTH_TOKEN`), NOT the per-Worker `API_TOKEN` var. `infra/env.sh` no longer stores the token — it resolves env var → `~/.fsc/eaton.token` → D1 `app_config`. On a 401 after a rotation, run `eaton_refresh_token`. If env.sh reports no token at all, self-serve it: read `app_config` key `EATON_TOKEN` via Cloudflare MCP `d1_database_query`, write `~/.fsc/eaton.token` (mode 600), source again — never ask Charlie to paste it. See `kb/lessons.md` 2026-07-10 and 2026-07-29.
 
 **FALLBACK if the Worker token is dead:** the data lives in D1 — query it directly via the Cloudflare MCP `d1_database_query` (db `62ce85d7-0cc1-4832-aa57-d5b09ceaa132`). No Worker token needed, so a dead token never blocks the brief.
 

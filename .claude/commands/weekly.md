@@ -8,7 +8,7 @@ Weekly review. Run Friday afternoon before leaving.
 ```bash
 source infra/env.sh   # EATON_API + EATON_TOKEN + `eaton` helper
 ```
-Compute `SINCE` = 7 days before today (YYYY-MM-DD). Auth: the Worker checks the Secrets Store secret `EATON_TOKEN` (bound as `AUTH_TOKEN`), not the per-Worker `API_TOKEN` — on a 401 see `kb/lessons.md` 2026-07-10. Data also queryable directly from D1 (db `62ce85d7-0cc1-4832-aa57-d5b09ceaa132`) via the Cloudflare MCP if the Worker is down.
+Compute `SINCE` = 7 days before today (YYYY-MM-DD). Auth: the Worker checks the Secrets Store secret `EATON_TOKEN` (bound as `AUTH_TOKEN`), not the per-Worker `API_TOKEN`. env.sh resolves the value itself (env var → `~/.fsc/eaton.token` → D1 `app_config`); on a 401 after a rotation run `eaton_refresh_token`. See `kb/lessons.md` 2026-07-10 and 2026-07-29. Data also queryable directly from D1 (db `62ce85d7-0cc1-4832-aa57-d5b09ceaa132`) via the Cloudflare MCP if the Worker is down.
 
 ## Step 1: Pull deltas (targeted, not full dumps)
 ```bash

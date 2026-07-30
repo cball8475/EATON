@@ -99,9 +99,13 @@ Exoskeletons ($30k, ergo/bus area), robotic stretch wrappers (4), saw project (t
 ## Shift Supervisors
 
 Steel — A: Chris Miller, B: Bruce Britton, C: Robert Kaylor, D: Marvin Felder
-Copper — A: Gloria Carter, B: open, C: James Eager, D: Marvin Felder (covers both shops)
+Copper — A: Gloria Carter, B: Stephanie Brownlee (started 5/11/2026, Kate hire), C: James Eager, D: Marvin Felder (covers both shops)
 
-"Urban Folder" was a mishearing of Marvin Felder. Vests: purple=team lead, red=ERT, brown=warehouse. Fab Ops Mgr: Gireesh Challawar. MEs: Ashwin (steel, laser safety/MOC reviewer), Jad (copper — pattern of bypassing chain of command; Hunter is Jad's direct supervisor). CI: Sachin. Quality: Kim.
+Also on the fab supervisor line per the 6/30/26 org chart: Robert Christopher Miller, Bruce L. Britton, Robert Earl Kaylor — all under Fab Ops Mgr Gireesh Challawar.
+
+"Urban Folder" was a mishearing of Marvin Felder. Vests: purple=team lead, red=ERT, brown=warehouse. Fab Ops Mgr: Gireesh Challawar. MEs report to Hunter Truett (Mgr MFG Engineering): Ashwin (steel, laser safety/MOC reviewer), Jad (copper — pattern of bypassing chain of command; Hunter is Jad's direct supervisor), Sachin (CI, fab), Nitol Saha (OT/automation). Quality: Kim (Kimberly Hilton-Lawson), Thea.
+
+Site plant manager: Stephen Krajcarski (interim since June 2026, after Taylor Nations left).
 
 ---
 
