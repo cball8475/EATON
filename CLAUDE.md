@@ -59,7 +59,9 @@ GET      /export          — full JSON dump
 GET      /health          — version + git_sha
 GET      /moves           — leadership moves (?since=YYYY-MM-DD, ?category=)
 GET/PATCH /scoreboard     — EHS safety metrics (TRIR, recordables, observations, man-hours, forklift). Sole authority. Every PATCH snapshots into scoreboard_history
-GET/POST /reflections     — weekly reflections (?since=; PATCH/DELETE /reflections/:id)
+GET/POST /reflections     — weekly reflections (?since=; PATCH/DELETE /reflections/:id). One row per week_of (Monday); POST 409s on a week that exists — PATCH instead
+GET      /reflections/health — missing weeks + drafts awaiting review + a single `alert` string
+POST     /reflections/draft — write this week's computed draft now (?week_of= to backfill one week). Manual twin of the Friday 21:00 UTC cron
 GET      /search          — search across knowledge + intel + tasks (?q=, ?limit=, ?mode=fts|semantic|hybrid). USE THIS for recall, not ?q= LIKE filters. mode=semantic answers meaning-level questions ("who resists change on the floor") via Vectorize embeddings; fts matches words
 POST     /vectorize/backfill — one-time semantic index build (?offset=; loop until done:true)
 GET      /trends          — weekly time series (?weeks=, default 12): tasks created/completed, knowledge/intel capture, moves by category, scoreboard history
@@ -223,7 +225,17 @@ If a number appears in this file it should be a *target* or *stable fact*, never
 
 **Backup (v3.8.0+):** a Monday 12:00 UTC cron pushes a gzipped full D1 export to `infra/backups/auto/` on GitHub main (needs the `GITHUB_BACKUP_TOKEN` Worker secret). Manual: `POST /backup/run`. `/audit` verifies the cadence. Restore: `infra/restore.sh <backup> <fresh-db> --create` — schema, data, FTS rebuild, count verification (tested 2026-07-22; refuses prod without `--force-prod`). The 07-27 cron produced no commit and the miss was never explained, so keep checking the cadence.
 
-**Verify crons by outcome, not exit status.** The digest is proven by an email in the inbox, the backup by a dated file in `infra/backups/auto/`. `ctx.waitUntil(p)` inside a try/catch catches nothing, and any helper that returns `{success:false}` instead of throwing is a silent failure by construction — that pattern has now bitten `/otter/extract`, the digest, and the backup.
+**Verify crons by outcome, not exit status.** The digest is proven by an email in the inbox, the backup by a dated file in `infra/backups/auto/`, the reflection by a row in `weekly_reflections`. `ctx.waitUntil(p)` inside a try/catch catches nothing, and any helper that returns `{success:false}` instead of throwing is a silent failure by construction — that pattern has now bitten `/otter/extract`, the digest, and the backup.
+
+**Weekly reflections (v3.10.0+) are automated, and the automation is watched.** Three layers, because the reflection is the influence-vs-execution record Laura tracks and it went 8 weeks unnoticed when it depended on Charlie remembering to run `/weekly`:
+
+1. A **Friday 21:00 UTC cron** auto-drafts the row from that week's real signals (moves, closed tasks, knowledge, intel) with `status='auto-draft'`. Idempotent per `week_of`, so running `/weekly` first makes it a no-op. It throws on failure and verifies the row reads back.
+2. **`/reflections/health` rides `/stats`**, so `reflections.alert` reaches `/morning` (via `/brief`) and `/status` (via `/pulse`) every day. This is the layer that catches the *cron* dying — it checks that rows exist rather than trusting any cron's exit status. `/morning` and `/status` must render `alert` whenever it is non-null.
+3. The **Friday digest email** carries a reflection-status line — an independent channel that still lands if both the cron and the brief are broken.
+
+An `auto-draft` is a placeholder, not a reflection: it guarantees the week isn't lost, and `/weekly` PATCHes it to `confirmed` once Charlie has revised it. **Never back-fill missing weeks silently** — a reflection is evidence someone reads, so an honest gap beats invented history. Offer `POST /reflections/draft?week_of=` and let Charlie decide.
+
+Every cron in `wrangler.toml` needs an explicit `case` in the worker's `scheduled()` switch. Before v3.10.0 the handler special-cased the backup and let everything else fall through to the digest, so a third trigger would have quietly mailed a second digest each week; an unrecognised cron now throws.
 
 ## Working Rules
 

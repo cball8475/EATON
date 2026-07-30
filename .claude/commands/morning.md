@@ -36,6 +36,13 @@ Counts (knowledge, intel, people, leadership_moves) come from `/stats` — do NO
 - If `/stats` knowledge/intel counts feel off vs. last session, flag it.
 - Output as one line: `🔍 DRIFT: [count] items — [one-liner each]`, or omit if clean.
 
+## Step 2.6: Reflection gap (do NOT skip — this is the automation's tripwire)
+`/stats` now returns `reflections.alert`. **If it is non-null, render it.** A Friday cron auto-drafts the weekly reflection, but a cron that dies reports nothing, so this check verifies the *rows* exist rather than trusting the cron — the `kb/lessons.md` 2026-07-25 lesson (verify by outcome, not exit status) applied to the succession record Laura tracks.
+
+- `reflections.weeks_missing > 0` → `⚠ REFLECTIONS: [alert]` and name the missing Mondays. Treat it as a broken cron, not a nudge.
+- `reflections.awaiting_review` non-empty → one line noting a draft is waiting on `/weekly`.
+- Both clear → omit the line entirely.
+
 ## Step 3: Force-read lessons
 Read `kb/lessons.md`. Surface entries added since the last session under `⚠ RECENT LESSONS`. Skip if none.
 
@@ -57,6 +64,7 @@ Pull today's events (`calendar_events` table, or ask Charlie to paste Outlook). 
 MORNING BRIEF — [Day, Date]
 
 🔍 DRIFT: [findings or omit]
+⚠ REFLECTIONS: [reflections.alert — omit only when null]
 ⚠ RECENT LESSONS: [or omit]
 ↕ DASHBOARD CHANGES SINCE LAST SESSION: [completed/changed tasks]
 📣 UNPROCESSED MEETINGS: [count or omit]

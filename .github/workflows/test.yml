@@ -1,0 +1,47 @@
+# Runs the worker's unit tests on every push and PR.
+#
+# Exists because the weekly-reflection automation (v3.10.0) is a watchdog, and a
+# broken watchdog is worse than none — it reports "all clear" while the record it
+# guards goes missing. The suite pins the behaviour that makes it trustworthy:
+# gap detection fires, drafts stay labelled, the cron is idempotent, /stats
+# survives a pre-migration table, and every registered cron has a handler.
+#
+# No dependencies to install: the tests use node:sqlite from the stdlib.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Worker syntax check
+        run: node --check infra/worker-api.mjs
+
+      - name: Weekly-reflection automation tests
+        run: node infra/reflections.test.mjs
+
+      # A cron registered in wrangler.toml with no case in scheduled() would
+      # throw at runtime every week. Cheap to catch here instead.
+      - name: Cron registration matches handlers
+        run: |
+          set -euo pipefail
+          fail=0
+          for c in $(grep -oE '"[0-9][^"]*\*[^"]*"' infra/wrangler.toml | tr -d '"'); do
+            if grep -qF "case \"$c\":" infra/worker-api.mjs; then
+              echo "  ok   $c"
+            else
+              echo "::error::cron \"$c\" is registered in wrangler.toml but has no case in the worker's scheduled() switch"
+              fail=1
+            fi
+          done
+          exit $fail

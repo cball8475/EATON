@@ -4,8 +4,27 @@
 // Secrets: API_TOKEN, ANTHROPIC_API_KEY, RESEND_API_KEY (weekly digest),
 //          GITHUB_BACKUP_TOKEN (weekly D1 backup push — PAT with repo scope)
 // Vars: GIT_SHA (set on deploy so /health reports the live commit — see infra/deploy-notes.md)
-// Crons: "0 14 * * 5" (Friday 10am ET — weekly digest), "0 12 * * 1" (Monday — D1 backup to GitHub)
+// Crons: "0 14 * * 5" (Friday 10am ET — weekly digest), "0 12 * * 1" (Monday — D1 backup to GitHub),
+//        "0 21 * * 5" (Friday 5pm ET — auto-draft the weekly reflection)
 // Changelog:
+//   v3.10.0 (2026-07-30) — weekly reflections are automated and can no longer fail quietly.
+//     The reflection was written only by Step 7b of the MANUAL /weekly command, so a skipped
+//     Friday left no row and nothing noticed: 1 row total, last week_of 2026-07-01, ~8 weeks
+//     absent — the influence-vs-execution record Laura tracks for succession. Three layers,
+//     so no single failure hides it: (1) a Friday 21:00 UTC cron auto-drafts the row from the
+//     week's real signals (moves/closed tasks/knowledge/intel), idempotent per week_of, and
+//     throws on failure; (2) reflection gap detection lives in computeStats(), so it rides
+//     /stats → /brief → /morning and /pulse → /status every day — if the CRON itself dies,
+//     the missing weeks still surface in the daily brief, because the check verifies the
+//     artifact exists rather than trusting the cron's exit status (the kb/lessons.md
+//     2026-07-25 lesson applied); (3) the Friday digest email carries a reflection-status
+//     line, an independent channel that lands in Charlie's inbox. Also fixes a latent cron
+//     dispatch bug: the handler special-cased the backup cron and let EVERY other cron fall
+//     through to the digest, so adding any third trigger would have silently sent a second
+//     digest. Dispatch is now explicit and an unrecognised cron throws.
+//     Adds status ('auto-draft'|'confirmed') to weekly_reflections, GET /reflections/health,
+//     POST /reflections/draft. Needs infra/migrations/2026-07-30-v3.10.0.sql; degrades to
+//     treating every row as confirmed until it runs.
 //   v3.9.4 (2026-07-25) — silent-failure sweep: /otter/extract returns 502 on unparseable
 //     or max_tokens-truncated model output instead of an empty-but-successful extraction
 //     (the parse-failure twin of the v3.9.1 bug); POST /digest/send returns 502 when the
@@ -36,7 +55,168 @@
 //   v3.6.0 (2026-06-03) — weekly digest moved from SendGrid to Resend
 //   v3.5.0 (2026-05-27) — added /scoreboard GET+PATCH for EHS safety pulse metrics
 
-const VERSION = "3.9.4";
+const VERSION = "3.10.0";
+
+// ── WEEKLY REFLECTION HELPERS ──
+// A reflection is keyed by week_of = the Monday of its week. Everything that
+// reads or writes one goes through mondayOf() so the cron, the manual POST, and
+// the gap check can never disagree about which week a row belongs to.
+function mondayOf(d = new Date()) {
+  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  // getUTCDay(): 0=Sun..6=Sat. Sunday belongs to the week that began 6 days back.
+  const shift = (t.getUTCDay() + 6) % 7;
+  t.setUTCDate(t.getUTCDate() - shift);
+  return t.toISOString().split("T")[0];
+}
+
+// Every Monday from `fromMonday` (exclusive) up to `toMonday` (inclusive).
+function mondaysBetween(fromMonday, toMonday) {
+  const out = [];
+  const cur = new Date(`${fromMonday}T00:00:00Z`);
+  const end = new Date(`${toMonday}T00:00:00Z`);
+  cur.setUTCDate(cur.getUTCDate() + 7);
+  while (cur <= end) {
+    out.push(cur.toISOString().split("T")[0]);
+    cur.setUTCDate(cur.getUTCDate() + 7);
+  }
+  return out;
+}
+
+// Reflection gap detection. This is the layer that catches the cron dying:
+// it asks whether the ROWS exist, never whether a cron reported success — the
+// exact distinction that let the weekly digest vanish for a month
+// (kb/lessons.md 2026-07-25). Rides computeStats() into /stats, /brief, /pulse.
+async function computeReflectionHealth(db) {
+  const total = await db.prepare("SELECT COUNT(*) as c FROM weekly_reflections").first();
+  const latest = await db.prepare("SELECT week_of FROM weekly_reflections ORDER BY week_of DESC LIMIT 1").first();
+  const thisWeek = mondayOf();
+
+  // Probe for the `status` column ONCE, up front. This runs on the /stats path,
+  // which /brief and /pulse sit on, so a throw here would take out /morning and
+  // /status together — every `status` read below must be behind this flag, not
+  // just the ones that happen to be inside a try. (A test caught exactly that:
+  // an unguarded `SELECT status ... WHERE week_of = ?` 500'd the whole brief on
+  // a worker deployed before 2026-07-30-v3.10.0.sql had run.)
+  let hasStatus = true;
+  try {
+    await db.prepare("SELECT status FROM weekly_reflections LIMIT 1").first();
+  } catch {
+    hasStatus = false;
+  }
+
+  let confirmed = total.c, awaitingReview = [];
+  if (hasStatus) {
+    const c = await db.prepare("SELECT COUNT(*) as c FROM weekly_reflections WHERE status = 'confirmed'").first();
+    confirmed = c.c;
+    const a = await db.prepare(
+      "SELECT week_of FROM weekly_reflections WHERE status = 'auto-draft' ORDER BY week_of DESC"
+    ).all();
+    awaitingReview = a.results.map(r => r.week_of);
+  }
+
+  const missing = latest?.week_of ? mondaysBetween(latest.week_of, thisWeek) : [];
+  const currentWeekRow = await db.prepare(
+    `SELECT ${hasStatus ? "status" : "'confirmed' AS status"} FROM weekly_reflections WHERE week_of = ?`
+  ).bind(thisWeek).first();
+
+  return {
+    total: total.c,
+    confirmed,
+    latest_week: latest?.week_of || null,
+    this_week: thisWeek,
+    this_week_status: currentWeekRow ? (currentWeekRow.status || "confirmed") : "missing",
+    missing_weeks: missing,
+    weeks_missing: missing.length,
+    awaiting_review: awaitingReview,
+    // The one field a caller can branch on without reasoning about the rest.
+    // /morning, /status and the digest all render off this.
+    alert: missing.length > 0
+      ? `${missing.length} weekly reflection${missing.length === 1 ? "" : "s"} missing (${missing[0]}${missing.length > 1 ? ` … ${missing[missing.length - 1]}` : ""})`
+      : (awaitingReview.length > 0 ? `${awaitingReview.length} auto-draft reflection${awaitingReview.length === 1 ? "" : "s"} awaiting review` : null)
+  };
+}
+
+// Build the auto-draft body from the week's real signals. Every string here is
+// derived from rows in D1 — the cron never invents judgment, it just refuses to
+// let the week go unrecorded. Charlie's revision via PATCH is what makes it
+// 'confirmed'; an unreviewed draft stays visibly a draft.
+async function draftReflectionFields(db, weekOf) {
+  const weekEnd = new Date(`${weekOf}T00:00:00Z`);
+  weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
+  const weekEndStr = weekEnd.toISOString().split("T")[0];
+
+  const moves = await db.prepare(
+    "SELECT category, description FROM leadership_moves WHERE date >= ? AND date < ? ORDER BY date"
+  ).bind(weekOf, weekEndStr).all();
+  const closed = await db.prepare(
+    "SELECT title FROM tasks WHERE status = 'done' AND completed_at >= ? AND completed_at < ? ORDER BY completed_at"
+  ).bind(weekOf, weekEndStr).all();
+  const knowledge = await db.prepare(
+    "SELECT category, subject FROM knowledge WHERE created_at >= ? AND created_at < ? ORDER BY created_at"
+  ).bind(weekOf, weekEndStr).all();
+  const intel = await db.prepare(
+    "SELECT DISTINCT person_name FROM people_intel WHERE created_at >= ? AND created_at < ?"
+  ).bind(weekOf, weekEndStr).all();
+
+  const moveCats = {};
+  for (const m of moves.results) moveCats[m.category] = (moveCats[m.category] || 0) + 1;
+  const catSummary = Object.entries(moveCats).map(([k, v]) => `${k} ×${v}`).join(", ") || "none logged";
+  const people = intel.results.map(r => r.person_name).filter(Boolean);
+  const kCats = {};
+  for (const k of knowledge.results) kCats[k.category] = (kCats[k.category] || 0) + 1;
+
+  return {
+    influenced_vs_executed:
+      `AUTO-DRAFT — ${moves.results.length} leadership move(s) logged (${catSummary}) against ${closed.results.length} task(s) closed. ` +
+      (moves.results.length === 0
+        ? "No influence logged this week; the record shows execution only."
+        : `Influence entries: ${moves.results.slice(0, 4).map(m => m.description).filter(Boolean).join(" | ") || "(no descriptions)"}`),
+    clarity_created:
+      `AUTO-DRAFT — ${knowledge.results.length} knowledge entr(ies) captured` +
+      (Object.keys(kCats).length ? ` (${Object.entries(kCats).map(([k, v]) => `${k} ×${v}`).join(", ")})` : "") +
+      (knowledge.results.length ? `. Subjects: ${knowledge.results.slice(0, 5).map(k => k.subject).join(" | ")}` : ". Nothing captured — debriefs may not be extracting."),
+    learned_about_eaton:
+      `AUTO-DRAFT — intel touched ${people.length} person(s)` +
+      (people.length ? `: ${people.slice(0, 8).join(", ")}` : " — no relationship signal recorded this week."),
+    time_allocation_note:
+      `AUTO-DRAFT from D1 signals for ${weekOf}..${weekEndStr}: ${closed.results.length} closed, ` +
+      `${moves.results.length} moves, ${knowledge.results.length} knowledge, ${intel.results.length} intel row(s). ` +
+      `Revise with the real read on where the week actually went, then PATCH status to 'confirmed'.`
+  };
+}
+
+// Idempotent per week_of: a second run in the same week is a no-op success, so
+// the cron, a manual POST /reflections/draft, and a retry can't create duplicates.
+async function runReflectionDraft(db, weekOf = mondayOf()) {
+  try {
+    const existing = await db.prepare("SELECT id, status FROM weekly_reflections WHERE week_of = ?").bind(weekOf).first();
+    if (existing) {
+      return { success: true, skipped: true, reason: "already exists", week_of: weekOf, id: existing.id, status: existing.status || "confirmed" };
+    }
+    const f = await draftReflectionFields(db, weekOf);
+    const res = await db.prepare(
+      `INSERT INTO weekly_reflections (week_of, influenced_vs_executed, clarity_created, learned_about_eaton, time_allocation_note, source_label, status)
+       VALUES (?, ?, ?, ?, ?, ?, 'auto-draft')`
+    ).bind(weekOf, f.influenced_vs_executed, f.clarity_created, f.learned_about_eaton, f.time_allocation_note, `cron auto-draft ${weekOf}`).run();
+    if (!res?.meta?.last_row_id) {
+      // A write that reports 2xx without a row id is a failure, not a success.
+      return { success: false, week_of: weekOf, error: "insert returned no row id" };
+    }
+    return { success: true, created: true, week_of: weekOf, id: res.meta.last_row_id };
+  } catch (e) {
+    // Deliberately does NOT fall back to a status-less insert. A draft that
+    // can't be labelled 'auto-draft' would read as a confirmed reflection and
+    // quietly become fake succession evidence — better to fail and say why.
+    const migrationMissing = /no such column: status/i.test(e.message || "");
+    return {
+      success: false,
+      week_of: weekOf,
+      error: migrationMissing
+        ? "weekly_reflections.status is missing — run infra/migrations/2026-07-30-v3.10.0.sql before this cron can draft (refusing to write an unlabelled row)"
+        : e.message
+    };
+  }
+}
 
 // Server-side enum guards. The DB has no enforced CHECK constraints, so this is the
 // only thing standing between a typo and a bad row (see task #389 — status "investigation").
@@ -133,8 +313,7 @@ async function computeStats(db) {
   const movesByCategory = await db.prepare("SELECT category, COUNT(*) as c FROM leadership_moves GROUP BY category").all();
   const movesThisWeek = await db.prepare("SELECT COUNT(*) as c FROM leadership_moves WHERE date >= date('now', '-7 days')").first();
   const movesThisMonth = await db.prepare("SELECT COUNT(*) as c FROM leadership_moves WHERE date >= date('now', '-30 days')").first();
-  const totalReflections = await db.prepare("SELECT COUNT(*) as c FROM weekly_reflections").first();
-  const latestReflection = await db.prepare("SELECT week_of FROM weekly_reflections ORDER BY week_of DESC LIMIT 1").first();
+  const reflectionHealth = await computeReflectionHealth(db);
   const totalKnowledge = await db.prepare("SELECT COUNT(*) as c FROM knowledge").first();
   const knowledgeByCategory = await db.prepare("SELECT category, COUNT(*) as c FROM knowledge GROUP BY category").all();
   const knowledgeThisWeek = await db.prepare("SELECT COUNT(*) as c FROM knowledge WHERE created_at >= date('now', '-7 days')").first();
@@ -152,10 +331,10 @@ async function computeStats(db) {
       this_week: movesThisWeek.c,
       this_month: movesThisMonth.c
     },
-    reflections: {
-      total: totalReflections.c,
-      latest_week: latestReflection?.week_of || null
-    },
+    // Carries missing_weeks / awaiting_review / alert. Consumers (/morning via
+    // /brief, /status via /pulse) must render `alert` when it is non-null —
+    // that is the whole point of automating the reflection: the gap is loud.
+    reflections: reflectionHealth,
     knowledge: {
       total: totalKnowledge.c,
       by_category: knowledgeByCategory.results,
@@ -438,11 +617,30 @@ function delta(current, prior) {
   return ` (${d > 0 ? "↑" : "↓"}${Math.abs(d)} vs last wk)`;
 }
 
-function formatDigestEmail(data) {
+function formatDigestEmail(data, reflectionHealth = null) {
   const lines = [];
   lines.push(`WEEKLY DIGEST — Week ending ${data.week_ending}`);
   lines.push(`Generated: ${new Date(data.generated_at).toLocaleString("en-US", { timeZone: "America/New_York" })}`);
   lines.push("");
+
+  // Reflection status rides the email because the email is an INDEPENDENT
+  // channel: if both the auto-draft cron and the daily brief were broken, this
+  // still lands in Charlie's inbox. A gap is stated at the top, not buried.
+  if (reflectionHealth) {
+    if (reflectionHealth.weeks_missing > 0) {
+      lines.push(`⚠ REFLECTIONS — ${reflectionHealth.alert}`);
+      lines.push(`  Missing: ${reflectionHealth.missing_weeks.join(", ")}`);
+      lines.push(`  The auto-draft cron should have covered these. It did not — check the Friday 21:00 UTC trigger.`);
+      lines.push("");
+    } else if (reflectionHealth.awaiting_review.length > 0) {
+      lines.push(`📓 REFLECTIONS — ${reflectionHealth.alert}: ${reflectionHealth.awaiting_review.join(", ")}`);
+      lines.push(`  Revise via /weekly, then PATCH status to 'confirmed'.`);
+      lines.push("");
+    } else {
+      lines.push(`📓 REFLECTIONS — current through ${reflectionHealth.latest_week}, all confirmed.`);
+      lines.push("");
+    }
+  }
 
   lines.push(`── COMPLETED THIS WEEK (${data.completed.length}${delta(data.completed.length, data.prior_week?.completed)}) ──`);
   if (data.completed.length === 0) {
@@ -554,29 +752,67 @@ export default {
   // invocation failed in Cloudflare instead of hiding it.
   async scheduled(controller, env, ctx) {
     const db = env.DB;
-    if (controller.cron === "0 12 * * 1") {
-      ctx.waitUntil((async () => {
-        const r = await runBackup(env, db);
-        if (!r?.success) {
-          console.error("Backup cron FAILED:", JSON.stringify(r));
-          throw new Error(`backup failed: ${r?.reason || r?.error || "unknown"}`);
-        }
-        console.log(`Backup pushed: ${r.path}`);
-      })());
-      return;
+
+    // Dispatch is EXPLICIT. This used to be `if (backup cron) {...; return}`
+    // followed by an unguarded digest send, which meant every cron that wasn't
+    // the backup fell through and mailed a digest — so adding any third trigger
+    // would have silently sent a second digest every week. An unrecognised cron
+    // now throws instead of quietly doing the wrong job.
+    switch (controller.cron) {
+      case "0 12 * * 1":
+        ctx.waitUntil((async () => {
+          const r = await runBackup(env, db);
+          if (!r?.success) {
+            console.error("Backup cron FAILED:", JSON.stringify(r));
+            throw new Error(`backup failed: ${r?.reason || r?.error || "unknown"}`);
+          }
+          console.log(`Backup pushed: ${r.path}`);
+        })());
+        return;
+
+      case "0 14 * * 5":
+        ctx.waitUntil((async () => {
+          const data = await buildWeeklyDigest(db);
+          const health = await computeReflectionHealth(db);
+          const body = formatDigestEmail(data, health);
+          const weekEnd = data.week_ending;
+          const subject = `EHS Weekly Digest — ${weekEnd} | ${data.completed.length} closed, ${data.total_open} open${data.overdue.length > 0 ? `, ${data.overdue.length} overdue` : ""}`;
+          const r = await sendDigestEmail(env, subject, body);
+          if (!r?.success) {
+            console.error("Digest cron FAILED:", JSON.stringify(r));
+            throw new Error(`digest send failed (status ${r?.status ?? "n/a"}): ${r?.error || r?.reason || "unknown"}`);
+          }
+          console.log(`Weekly digest sent for week ending ${weekEnd} (resend id ${r.id})`);
+        })());
+        return;
+
+      // Friday 21:00 UTC (5pm ET) — after the 14:00 digest and after Charlie
+      // would have run /weekly himself. If he did, this is a no-op; if he
+      // didn't, the week still gets a row instead of vanishing.
+      case "0 21 * * 5":
+        ctx.waitUntil((async () => {
+          const r = await runReflectionDraft(db);
+          if (!r?.success) {
+            console.error("Reflection auto-draft cron FAILED:", JSON.stringify(r));
+            throw new Error(`reflection auto-draft failed for ${r?.week_of}: ${r?.error || "unknown"}`);
+          }
+          console.log(r.skipped
+            ? `Reflection for ${r.week_of} already on file (id ${r.id}, ${r.status}) — no draft written`
+            : `Reflection auto-draft created for ${r.week_of} (id ${r.id}) — awaiting review`);
+
+          // Verify the artifact, don't trust the insert's return value. If the
+          // row is somehow not readable back, the invocation must fail.
+          const check = await db.prepare("SELECT id FROM weekly_reflections WHERE week_of = ?").bind(r.week_of).first();
+          if (!check) throw new Error(`post-write verification failed: no reflection row for ${r.week_of}`);
+        })());
+        return;
+
+      default:
+        ctx.waitUntil(Promise.reject(
+          new Error(`unrecognised cron trigger "${controller.cron}" — no handler; refusing to guess (see the v3.10.0 dispatch note)`)
+        ));
+        return;
     }
-    ctx.waitUntil((async () => {
-      const data = await buildWeeklyDigest(db);
-      const body = formatDigestEmail(data);
-      const weekEnd = data.week_ending;
-      const subject = `EHS Weekly Digest — ${weekEnd} | ${data.completed.length} closed, ${data.total_open} open${data.overdue.length > 0 ? `, ${data.overdue.length} overdue` : ""}`;
-      const r = await sendDigestEmail(env, subject, body);
-      if (!r?.success) {
-        console.error("Digest cron FAILED:", JSON.stringify(r));
-        throw new Error(`digest send failed (status ${r?.status ?? "n/a"}): ${r?.error || r?.reason || "unknown"}`);
-      }
-      console.log(`Weekly digest sent for week ending ${weekEnd} (resend id ${r.id})`);
-    })());
   },
 
   async fetch(request, env, ctx) {
@@ -615,13 +851,13 @@ export default {
       // ── DIGEST ──
       if (path === "/digest/preview" && method === "GET") {
         const data = await buildWeeklyDigest(db);
-        const body = formatDigestEmail(data);
+        const body = formatDigestEmail(data, await computeReflectionHealth(db));
         return json({ digest: data, formatted: body });
       }
 
       if (path === "/digest/send" && method === "POST") {
         const data = await buildWeeklyDigest(db);
-        const body = formatDigestEmail(data);
+        const body = formatDigestEmail(data, await computeReflectionHealth(db));
         const subject = `EHS Weekly Digest — ${data.week_ending} | ${data.completed.length} closed, ${data.total_open} open${data.overdue.length > 0 ? `, ${data.overdue.length} overdue` : ""}`;
         const result = await sendDigestEmail(env, subject, body);
         // A failed send must fail at the HTTP layer too — callers checking the
@@ -779,19 +1015,57 @@ export default {
         return json({ reflections: results, count: results.length });
       }
 
+      // Gap report. Deliberately its own endpoint as well as part of /stats so
+      // /audit and any ad-hoc check can ask the single question "is the
+      // reflection record actually current?" without pulling all of /stats.
+      if (path === "/reflections/health" && method === "GET") {
+        return json(await computeReflectionHealth(db));
+      }
+
+      // Manual twin of the Friday 21:00 UTC cron, same routine — mirrors the
+      // /backup/run pattern so the cron's work is always reproducible by hand.
+      // ?week_of=YYYY-MM-DD backfills a specific week; defaults to this week.
+      if (path === "/reflections/draft" && method === "POST") {
+        const requested = url.searchParams.get("week_of");
+        if (requested && !/^\d{4}-\d{2}-\d{2}$/.test(requested)) return err("week_of must be YYYY-MM-DD");
+        if (requested && mondayOf(new Date(`${requested}T00:00:00Z`)) !== requested) {
+          return err(`week_of must be a Monday — ${requested} is not (nearest: ${mondayOf(new Date(`${requested}T00:00:00Z`))})`);
+        }
+        const r = await runReflectionDraft(db, requested || mondayOf());
+        return json(r, r.success ? (r.created ? 201 : 200) : 500);
+      }
+
       if (path === "/reflections" && method === "POST") {
         const body = await request.json();
         if (!body.week_of) return err("week_of is required (YYYY-MM-DD of Monday)");
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(body.week_of)) return err("week_of must be YYYY-MM-DD");
+        if (mondayOf(new Date(`${body.week_of}T00:00:00Z`)) !== body.week_of) {
+          return err(`week_of must be a Monday — ${body.week_of} is not (nearest: ${mondayOf(new Date(`${body.week_of}T00:00:00Z`))})`);
+        }
+        if (body.status && !["auto-draft", "confirmed"].includes(body.status)) {
+          return err("status must be 'auto-draft' or 'confirmed'");
+        }
+        // One row per week. The cron may already have drafted this week, and a
+        // second row would split the record — PATCH the draft instead.
+        const clash = await db.prepare("SELECT id, status FROM weekly_reflections WHERE week_of = ?").bind(body.week_of).first();
+        if (clash) {
+          return json({
+            error: `a reflection for ${body.week_of} already exists (id ${clash.id}, status ${clash.status || "confirmed"}) — PATCH /reflections/${clash.id} to revise it instead of creating a second row`,
+            existing_id: clash.id,
+            existing_status: clash.status || "confirmed"
+          }, 409);
+        }
         const result = await db.prepare(
-          `INSERT INTO weekly_reflections (week_of, influenced_vs_executed, clarity_created, learned_about_eaton, time_allocation_note, source_label)
-           VALUES (?, ?, ?, ?, ?, ?)`
+          `INSERT INTO weekly_reflections (week_of, influenced_vs_executed, clarity_created, learned_about_eaton, time_allocation_note, source_label, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`
         ).bind(
           body.week_of,
           body.influenced_vs_executed || null,
           body.clarity_created || null,
           body.learned_about_eaton || null,
           body.time_allocation_note || null,
-          body.source_label || null
+          body.source_label || null,
+          body.status || "confirmed"
         ).run();
         const created = await db.prepare("SELECT * FROM weekly_reflections WHERE id = ?").bind(result.meta.last_row_id).first();
         return json(created, 201);
@@ -800,7 +1074,13 @@ export default {
       if (matchPath(path, "/reflections/:id") && method === "PATCH") {
         const [id] = matchPath(path, "/reflections/:id");
         const body = await request.json();
-        const allowed = ["week_of","influenced_vs_executed","clarity_created","learned_about_eaton","time_allocation_note","source_label"];
+        // `status` is patchable so revising an auto-draft can mark it reviewed:
+        // PATCH {..., "status": "confirmed"} is how a draft stops counting as
+        // awaiting review. Without it, drafts would nag forever.
+        const allowed = ["week_of","influenced_vs_executed","clarity_created","learned_about_eaton","time_allocation_note","source_label","status"];
+        if (body.status !== undefined && !["auto-draft", "confirmed"].includes(body.status)) {
+          return err("status must be 'auto-draft' or 'confirmed'");
+        }
         const sets = [];
         const vals = [];
         for (const key of allowed) {
@@ -810,6 +1090,7 @@ export default {
         vals.push(id);
         await db.prepare(`UPDATE weekly_reflections SET ${sets.join(", ")} WHERE id = ?`).bind(...vals).run();
         const updated = await db.prepare("SELECT * FROM weekly_reflections WHERE id = ?").bind(id).first();
+        if (!updated) return err(`no reflection with id ${id}`, 404);
         return json(updated);
       }
 
