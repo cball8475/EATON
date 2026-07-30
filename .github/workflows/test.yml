@@ -10,8 +10,9 @@
 name: Tests
 
 on:
+  # Only `push` — with both triggers every PR commit ran the suite twice for
+  # the same sha, which is pure duplicate CI.
   push:
-  pull_request:
 
 jobs:
   test:
@@ -27,21 +28,13 @@ jobs:
       - name: Worker syntax check
         run: node --check infra/worker-api.mjs
 
+      # Covers the cron-registration check too (suite section 9): every cron in
+      # wrangler.toml must have an explicit case in scheduled().
+      #
+      # That check was briefly duplicated here as a shell loop, which was itself
+      # a bug worth remembering: `for c in $(grep ...)` leaves the substitution
+      # unquoted, so a cron like "0 14 * * 5" word-split AND each `*` glob-expanded
+      # against the repo root — CI reported crons named "kb", "readme.md" and
+      # "index.html". The JS assertion can't glob, so it stays the only one.
       - name: Weekly-reflection automation tests
         run: node infra/reflections.test.mjs
-
-      # A cron registered in wrangler.toml with no case in scheduled() would
-      # throw at runtime every week. Cheap to catch here instead.
-      - name: Cron registration matches handlers
-        run: |
-          set -euo pipefail
-          fail=0
-          for c in $(grep -oE '"[0-9][^"]*\*[^"]*"' infra/wrangler.toml | tr -d '"'); do
-            if grep -qF "case \"$c\":" infra/worker-api.mjs; then
-              echo "  ok   $c"
-            else
-              echo "::error::cron \"$c\" is registered in wrangler.toml but has no case in the worker's scheduled() switch"
-              fail=1
-            fi
-          done
-          exit $fail
