@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reel Handling Labels — Photo Version</title>
+<style>
+  :root {
+    --eaton-blue: #0057a8;
+    --go-green: #1e7e34;
+    --stop-red: #c8102e;
+    --ink: #111;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: #e9ecef;
+    color: var(--ink);
+    padding: 24px;
+  }
+
+  .toolbar {
+    max-width: 1000px;
+    margin: 0 auto 20px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .toolbar h1 { font-size: 18px; margin-right: auto; }
+  .toolbar button {
+    font-size: 14px;
+    padding: 8px 16px;
+    border: 1px solid #999;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+  }
+  .toolbar button:hover { background: #f1f3f5; }
+  .toolbar .hint { flex-basis: 100%; font-size: 12px; color: #555; }
+
+  .label-card {
+    max-width: 1000px;
+    margin: 0 auto 32px;
+    background: #fff;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,.25);
+  }
+
+  .label-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 22px;
+    background: #fff;
+  }
+  .eaton-logo { line-height: 1; }
+  .eaton-logo .mark {
+    font-size: 34px;
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: 1px;
+    color: var(--eaton-blue);
+    font-family: Arial Black, Arial, sans-serif;
+  }
+  .eaton-logo .tag {
+    font-size: 10px;
+    font-style: italic;
+    color: #333;
+    margin-top: 2px;
+  }
+  .header-right { text-align: right; }
+  .header-right .title {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--eaton-blue);
+    letter-spacing: .5px;
+  }
+  .header-right .sub { font-size: 12px; color: #444; }
+
+  .label-body {
+    display: flex;
+    gap: 0;
+    margin: 0 18px;
+    border-radius: 8px;
+    padding: 26px;
+    min-height: 330px;
+    align-items: stretch;
+    color: #fff;
+  }
+  .label-body.green { background: var(--go-green); }
+  .label-body.red { background: var(--stop-red); }
+
+  .photo-zone {
+    flex: 0 0 42%;
+    background: rgba(255,255,255,.12);
+    border: 3px dashed rgba(255,255,255,.75);
+    border-radius: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-content: center;
+    justify-content: center;
+    padding: 8px;
+    cursor: pointer;
+    position: relative;
+    min-height: 280px;
+  }
+  .photo-zone.dragover { background: rgba(255,255,255,.28); }
+  .photo-zone .placeholder {
+    text-align: center;
+    font-size: 15px;
+    font-weight: 700;
+    opacity: .95;
+    pointer-events: none;
+    padding: 12px;
+  }
+  .photo-zone .placeholder .big { font-size: 40px; display: block; margin-bottom: 8px; }
+  .photo-zone img {
+    max-width: 100%;
+    border-radius: 6px;
+    object-fit: contain;
+    background: #fff;
+  }
+  .photo-zone img.single { max-height: 270px; }
+  .photo-zone img.multi { width: calc(50% - 6px); max-height: 132px; object-fit: cover; }
+  .photo-zone .clear-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: rgba(0,0,0,.55);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 4px 8px;
+    cursor: pointer;
+    display: none;
+  }
+  .photo-zone.has-photos .clear-btn { display: block; }
+  .photo-zone.has-photos .placeholder { display: none; }
+
+  .divider {
+    width: 2px;
+    background: rgba(255,255,255,.8);
+    margin: 8px 26px;
+  }
+
+  .rule-text { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  .rule-text .headline { font-size: 58px; font-weight: 900; letter-spacing: 1px; }
+  .rule-text .weight { font-size: 34px; font-weight: 700; margin: 4px 0 14px; }
+  .rule-text .detail { font-size: 19px; line-height: 1.45; }
+  [contenteditable]:focus { outline: 2px dashed rgba(255,255,255,.9); outline-offset: 3px; }
+
+  .label-footer {
+    background: #111;
+    color: #fff;
+    margin: 18px;
+    margin-top: 14px;
+    border-radius: 8px;
+    padding: 14px 20px;
+    font-size: 14px;
+  }
+  .label-footer .always { margin-bottom: 10px; }
+  .label-footer .always b { font-weight: 800; }
+  .label-footer .fields {
+    display: flex;
+    gap: 28px;
+    align-items: baseline;
+    font-size: 13px;
+    letter-spacing: .3px;
+  }
+  .label-footer input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid #aaa;
+    color: #fff;
+    font-size: 14px;
+    padding: 2px 4px;
+  }
+  .label-footer input:focus { outline: none; border-bottom-color: #fff; }
+  .label-footer input.part { width: 220px; }
+  .label-footer input.wt { width: 80px; text-align: center; }
+
+  @media print {
+    body { background: #fff; padding: 0; }
+    .toolbar { display: none; }
+    .label-card {
+      box-shadow: none;
+      border-radius: 0;
+      max-width: none;
+      page-break-after: always;
+    }
+    .photo-zone { border-style: solid; cursor: default; }
+    .photo-zone .placeholder, .photo-zone .clear-btn { display: none !important; }
+    .label-body.green { background: var(--go-green) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .label-body.red { background: var(--stop-red) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .label-footer { background: #111 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+  @page { size: landscape; margin: 10mm; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <h1>Reel Handling Labels — photo version</h1>
+  <button onclick="window.print()">Print / Save as PDF</button>
+  <button onclick="clearAll()">Reset everything</button>
+  <div class="hint">
+    Click a dashed box (or drag photos onto it) to add pictures of the actual reels for that rack.
+    Text blocks are editable — click any line to adjust wording. Photos and fields save in this browser
+    until you reset. Print landscape; each label prints on its own page.
+  </div>
+</div>
+
+<!-- GREEN: BY HAND -->
+<div class="label-card" id="card-green">
+  <div class="label-header">
+    <div class="eaton-logo">
+      <div class="mark">E&#8226;T&#8226;N</div>
+      <div class="tag">Powering Business Worldwide</div>
+    </div>
+    <div class="header-right">
+      <div class="title">REEL HANDLING</div>
+      <div class="sub">Check the weight, then lift</div>
+    </div>
+  </div>
+
+  <div class="label-body green">
+    <div class="photo-zone" data-zone="green">
+      <div class="placeholder">
+        <span class="big">&#128247;</span>
+        Add photos of the reels<br>OK to lift BY HAND from this rack
+      </div>
+      <button class="clear-btn" data-clear="green">Remove photos</button>
+      <input type="file" accept="image/*" multiple hidden data-input="green">
+    </div>
+    <div class="divider"></div>
+    <div class="rule-text">
+      <div class="headline" contenteditable="true">BY HAND</div>
+      <div class="weight" contenteditable="true">Under 35 lb</div>
+      <div class="detail" contenteditable="true">Hand lift OK if manageable<br>Big / awkward / long / wide:<br>buddy lift &mdash; 2 people</div>
+    </div>
+  </div>
+
+  <div class="label-footer">
+    <div class="always" contenteditable="true"><b>ALWAYS &mdash; regardless of weight:</b><br>
+      One reel at a time &nbsp;&bull;&nbsp; Never hand-stack reels &nbsp;&bull;&nbsp; Don't push a reel up from underneath
+    </div>
+    <div class="fields">
+      <span>RACK / PART #: <input type="text" class="part" data-field="green-part"></span>
+      <span>NET WT: <input type="text" class="wt" data-field="green-wt"> lb</span>
+      <span>MS TABLE #: <input type="text" class="wt" data-field="green-table"></span>
+    </div>
+  </div>
+</div>
+
+<!-- RED: FORKLIFT -->
+<div class="label-card" id="card-red">
+  <div class="label-header">
+    <div class="eaton-logo">
+      <div class="mark">E&#8226;T&#8226;N</div>
+      <div class="tag">Powering Business Worldwide</div>
+    </div>
+    <div class="header-right">
+      <div class="title">REEL HANDLING</div>
+      <div class="sub">Check the weight, then lift</div>
+    </div>
+  </div>
+
+  <div class="label-body red">
+    <div class="photo-zone" data-zone="red">
+      <div class="placeholder">
+        <span class="big">&#128247;</span>
+        Add photos of the reels that<br>require a FORKLIFT from this rack
+      </div>
+      <button class="clear-btn" data-clear="red">Remove photos</button>
+      <input type="file" accept="image/*" multiple hidden data-input="red">
+    </div>
+    <div class="divider"></div>
+    <div class="rule-text">
+      <div class="headline" contenteditable="true">FORKLIFT</div>
+      <div class="weight" contenteditable="true">35 lb &amp; over</div>
+      <div class="detail" contenteditable="true">Forklift to move<br>Shepherd's hook to rack edge<br>Elevated table for rack-to-bench</div>
+    </div>
+  </div>
+
+  <div class="label-footer">
+    <div class="always" contenteditable="true"><b>ALWAYS &mdash; regardless of weight:</b><br>
+      One reel at a time &nbsp;&bull;&nbsp; Never hand-stack reels &nbsp;&bull;&nbsp; Don't push a reel up from underneath
+    </div>
+    <div class="fields">
+      <span>RACK / PART #: <input type="text" class="part" data-field="red-part"></span>
+      <span>NET WT: <input type="text" class="wt" data-field="red-wt"> lb</span>
+      <span>MS TABLE #: <input type="text" class="wt" data-field="red-table"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORE_KEY = 'reel-labels-v1';
+
+function loadState() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || { photos: {}, fields: {} }; }
+  catch { return { photos: {}, fields: {} }; }
+}
+function saveState(state) {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+  catch (e) { console.warn('Photos too large to save for reload; printing still works.', e); }
+}
+let state = loadState();
+
+function renderZone(name) {
+  const zone = document.querySelector(`[data-zone="${name}"]`);
+  zone.querySelectorAll('img').forEach(img => img.remove());
+  const photos = state.photos[name] || [];
+  photos.forEach(src => {
+    const img = document.createElement('img');
+    img.src = src;
+    img.className = photos.length === 1 ? 'single' : 'multi';
+    zone.appendChild(img);
+  });
+  zone.classList.toggle('has-photos', photos.length > 0);
+}
+
+function addFiles(name, files) {
+  const images = [...files].filter(f => f.type.startsWith('image/'));
+  let pending = images.length;
+  if (!pending) return;
+  images.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      (state.photos[name] = state.photos[name] || []).push(reader.result);
+      if (--pending === 0) { saveState(state); renderZone(name); }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+document.querySelectorAll('.photo-zone').forEach(zone => {
+  const name = zone.dataset.zone;
+  const input = zone.querySelector('input[type=file]');
+  zone.addEventListener('click', e => {
+    if (e.target.closest('.clear-btn') || e.target.tagName === 'IMG') return;
+    input.click();
+  });
+  input.addEventListener('change', () => { addFiles(name, input.files); input.value = ''; });
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    addFiles(name, e.dataTransfer.files);
+  });
+});
+
+document.querySelectorAll('[data-clear]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    delete state.photos[btn.dataset.clear];
+    saveState(state);
+    renderZone(btn.dataset.clear);
+  });
+});
+
+document.querySelectorAll('[data-field]').forEach(inp => {
+  inp.value = state.fields[inp.dataset.field] || '';
+  inp.addEventListener('input', () => {
+    state.fields[inp.dataset.field] = inp.value;
+    saveState(state);
+  });
+});
+
+function clearAll() {
+  localStorage.removeItem(STORE_KEY);
+  state = { photos: {}, fields: {} };
+  ['green', 'red'].forEach(renderZone);
+  document.querySelectorAll('[data-field]').forEach(inp => inp.value = '');
+}
+
+['green', 'red'].forEach(renderZone);
+</script>
+</body>
+</html>
