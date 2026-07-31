@@ -85,17 +85,40 @@ node tools/review-queue.test.mjs
 
 ## Deploying
 
-It's a static file. Alongside the dashboard on Netlify:
+Live at **https://eaton-ehs-cmd.netlify.app/review.html** (deployed 2026-07-31).
+
+It's a static file on the same Netlify site as the dashboard. The deploy uploads a
+**directory**, and whatever isn't in it gets removed from the site — so always stage a
+directory containing *both* pages, never just the one you changed:
 
 ```bash
-mkdir -p /tmp/eaton-dash
-cp index.html /tmp/eaton-dash/index.html
-cp tools/review-queue.html /tmp/eaton-dash/review.html
-npx -y netlify-cli deploy --prod --dir /tmp/eaton-dash --site 5667ffaa-f8bb-4208-9cba-766fd357f2b8
+rm -rf /tmp/eaton-dash && mkdir -p /tmp/eaton-dash
+cp index.html                /tmp/eaton-dash/index.html
+cp tools/review-queue.html   /tmp/eaton-dash/review.html
+printf '[build]\n  publish = "."\n  command = ""\n' > /tmp/eaton-dash/netlify.toml
+find /tmp/eaton-dash -type f          # verify before uploading
 ```
 
-Then it's at `/review.html`. **Deploy the whole directory, not one file** — a `--dir` with
-only `review.html` in it would wipe `index.html` off the site.
+Then get a deploy command from the Netlify MCP (`netlify-deploy-services-updater`,
+operation `deploy-site`, siteId `5667ffaa-f8bb-4208-9cba-766fd357f2b8`). It returns an
+`npx @netlify/mcp@latest --site-id … --proxy-path …` line carrying short-lived auth.
+**Run it from `/tmp/eaton-dash`** — it uploads the current working directory.
+
+Two things worth knowing:
+
+- `npx netlify-cli deploy` from the deploy notes needs an interactive browser login that
+  isn't available in a Claude Code session. The MCP proxy-path route is the one that works
+  headless.
+- The command uploads **CWD**. Running it from a repo root would publish the whole tree.
+  The `netlify.toml` with `publish = "."` plus a staged directory is what keeps that
+  bounded.
+
+Verify by outcome, not exit status — the deploy prints "Deploy is ready!" regardless:
+
+```bash
+curl -s https://eaton-ehs-cmd.netlify.app/review.html -o /tmp/live.html
+cmp /tmp/live.html tools/review-queue.html && echo "byte-identical"
+```
 
 ## Reusing it for Otter transcripts
 
