@@ -1,0 +1,1493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review Queue — EHS CMD</title>
+<style>
+  :root{
+    --ground:#f6f5f2; --surface:#fffefc; --surface-2:#eeece7; --surface-3:#e6e3dc;
+    --ink:#1b1d21; --ink-2:#575c65; --ink-3:#83888f;
+    --rule:#dcd8d1; --rule-2:#c6c1b8;
+    --accent:#a75c14; --accent-soft:#f2e5d5;
+    --critical:#ab2f29; --critical-soft:#f7e0de;
+    --info:#2b6070; --info-soft:#dbe9ed;
+    --know:#565087; --know-soft:#e3e1f0;
+    --good:#3d6b51; --good-soft:#dde9e1;
+    --mute:#7c7f85; --mute-soft:#e8e6e2;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ground:#111318; --surface:#181b20; --surface-2:#1e222a; --surface-3:#252a33;
+      --ink:#e9e6e0; --ink-2:#a3a9b2; --ink-3:#7a8089;
+      --rule:#272c33; --rule-2:#353b45;
+      --accent:#e0913f; --accent-soft:#2e2317;
+      --critical:#e8695c; --critical-soft:#331b19;
+      --info:#6fb3c7; --info-soft:#132428;
+      --know:#a49dd8; --know-soft:#201e2e;
+      --good:#7fb894; --good-soft:#17251d;
+      --mute:#878d96; --mute-soft:#1f2229;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#111318; --surface:#181b20; --surface-2:#1e222a; --surface-3:#252a33;
+    --ink:#e9e6e0; --ink-2:#a3a9b2; --ink-3:#7a8089;
+    --rule:#272c33; --rule-2:#353b45;
+    --accent:#e0913f; --accent-soft:#2e2317;
+    --critical:#e8695c; --critical-soft:#331b19;
+    --info:#6fb3c7; --info-soft:#132428;
+    --know:#a49dd8; --know-soft:#201e2e;
+    --good:#7fb894; --good-soft:#17251d;
+    --mute:#878d96; --mute-soft:#1f2229;
+  }
+  :root[data-theme="light"]{
+    --ground:#f6f5f2; --surface:#fffefc; --surface-2:#eeece7; --surface-3:#e6e3dc;
+    --ink:#1b1d21; --ink-2:#575c65; --ink-3:#83888f;
+    --rule:#dcd8d1; --rule-2:#c6c1b8;
+    --accent:#a75c14; --accent-soft:#f2e5d5;
+    --critical:#ab2f29; --critical-soft:#f7e0de;
+    --info:#2b6070; --info-soft:#dbe9ed;
+    --know:#565087; --know-soft:#e3e1f0;
+    --good:#3d6b51; --good-soft:#dde9e1;
+    --mute:#7c7f85; --mute-soft:#e8e6e2;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--ground); color:var(--ink);
+    font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    font-size:16px; line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+        font-variant-numeric:tabular-nums;}
+  .wrap{max-width:880px; margin:0 auto; padding:32px 18px 150px;}
+
+  .mast{border-bottom:2px solid var(--ink); padding-bottom:14px;}
+  .kicker{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px;
+          letter-spacing:.14em; text-transform:uppercase; color:var(--accent); font-weight:600;}
+  h1{font-size:clamp(26px,5vw,37px); line-height:1.08; letter-spacing:-.022em; font-weight:680;
+     margin:8px 0 10px; text-wrap:balance;}
+  .sub{color:var(--ink-2); font-size:15px; max-width:64ch;}
+  .runline{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px;
+           color:var(--ink-3); letter-spacing:.03em; margin-top:12px;
+           display:flex; flex-wrap:wrap; gap:5px 18px;}
+
+  /* ── connection banner ── */
+  .conn{margin:22px 0 0; border:1px solid var(--rule); background:var(--surface);
+        padding:13px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+        border-left:3px solid var(--mute);}
+  .conn.ok{border-left-color:var(--good);}
+  .conn.bad{border-left-color:var(--critical); background:var(--critical-soft);}
+  .conn.warn{border-left-color:var(--accent); background:var(--accent-soft);}
+  .conn .lbl{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px;
+             letter-spacing:.08em; text-transform:uppercase; font-weight:600;}
+  .conn .msg{font-size:13.5px; color:var(--ink-2); flex:1; min-width:180px;}
+  .conn input{font:inherit; font-size:13px; padding:6px 9px; background:var(--ground);
+              color:var(--ink); border:1px solid var(--rule-2); min-width:230px; flex:1;
+              font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+
+  .howto{background:var(--surface); border:1px solid var(--rule); border-left:3px solid var(--accent);
+         padding:15px 18px; margin:18px 0 0; font-size:14px; color:var(--ink-2);}
+  .howto b{color:var(--ink);}
+  .howto ol{margin:8px 0 0 18px;} .howto li{margin-bottom:4px;}
+
+  .prog{position:sticky; top:0; z-index:40; background:var(--ground);
+        border-bottom:1px solid var(--rule); padding:11px 0 10px; margin:24px 0 30px;}
+  .bar{height:5px; background:var(--surface-3); overflow:hidden; display:flex;}
+  .bar i{display:block; height:100%; transition:width .28s ease;}
+  .progrow{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:9px;}
+  .progrow .c{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11.5px;
+              color:var(--ink-2); letter-spacing:.04em; font-variant-numeric:tabular-nums;}
+  .progrow .c b{color:var(--ink); font-weight:600;}
+  .spacer{flex:1;}
+
+  button{font:inherit; cursor:pointer; border:1px solid var(--rule-2); background:var(--surface);
+         color:var(--ink-2); padding:5px 10px; line-height:1.35;
+         font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px;
+         letter-spacing:.06em; text-transform:uppercase;
+         transition:background .12s,border-color .12s,color .12s;}
+  button:hover:not(:disabled){border-color:var(--ink-3); color:var(--ink);}
+  button:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  button:disabled{opacity:.45; cursor:not-allowed;}
+  .btn-solid{background:var(--ink); color:var(--ground); border-color:var(--ink); font-weight:600;}
+  .btn-solid:hover:not(:disabled){background:var(--ink-2); border-color:var(--ink-2); color:var(--ground);}
+  .btn-danger{background:var(--critical); color:#fff; border-color:var(--critical); font-weight:600;}
+
+  section{margin:0 0 42px; scroll-margin-top:100px;}
+  .shead{display:flex; align-items:baseline; gap:12px; border-bottom:1px solid var(--ink);
+         padding-bottom:7px; margin-bottom:2px; flex-wrap:wrap;}
+  .shead h2{font-size:18.5px; font-weight:660; letter-spacing:-.012em; flex:1; min-width:180px;}
+  .shead .ct{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px;
+             color:var(--ink-3); letter-spacing:.06em;}
+  .snote{color:var(--ink-2); font-size:14.5px; margin:12px 0 2px; max-width:68ch;}
+
+  .item{border-bottom:1px solid var(--rule); border-left:3px solid var(--rule-2);
+        padding:15px 0 14px 13px; transition:opacity .18s, border-color .18s;}
+  .item[data-u="crit"]{border-left-color:var(--critical);}
+  .item[data-u="warn"]{border-left-color:var(--accent);}
+  .item[data-u="calm"]{border-left-color:var(--rule-2);}
+  .item[data-u="good"]{border-left-color:var(--good);}
+  .item.settled{opacity:.58;}
+  .item.settled:hover, .item.settled:focus-within{opacity:1;}
+  .item.settled[data-d="task"]{border-left-color:var(--accent);}
+  .item.settled[data-d="reply"]{border-left-color:var(--critical);}
+  .item.settled[data-d="cal"]{border-left-color:var(--info);}
+  .item.settled[data-d="know"],.item.settled[data-d="intel"]{border-left-color:var(--know);}
+  .item.settled[data-d="replied"],.item.settled[data-d="move"]{border-left-color:var(--good);}
+  .item.settled[data-d="skip"],.item.settled[data-d="fyi"]{border-left-color:var(--mute);}
+  .item.written{opacity:1; background:var(--good-soft);}
+  .item.failed{opacity:1; background:var(--critical-soft); border-left-color:var(--critical);}
+
+  .ihead{display:flex; gap:14px; align-items:flex-start;}
+  .when{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px;
+        letter-spacing:.03em; color:var(--ink-2); font-variant-numeric:tabular-nums;
+        line-height:1.45; width:78px; flex:none; padding-top:2px;}
+  .when b{display:block; color:var(--ink); font-weight:600;}
+  .when .od{color:var(--critical); font-weight:600;}
+  .ibody{flex:1; min-width:0;}
+  .ibody h3{font-size:15.5px; font-weight:620; line-height:1.36; letter-spacing:-.005em; margin-bottom:5px;}
+  .ibody p{font-size:14.5px; color:var(--ink-2); margin-bottom:6px;}
+  .src{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px;
+       color:var(--ink-3); letter-spacing:.02em; margin-bottom:0 !important;}
+  .tags{display:flex; flex-wrap:wrap; gap:5px; margin-top:7px;}
+  .tag{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10px;
+       letter-spacing:.08em; text-transform:uppercase; padding:2px 6px;
+       border:1px solid var(--rule-2); color:var(--ink-3); white-space:nowrap;}
+  .tag.hot{background:var(--critical-soft); border-color:var(--critical); color:var(--critical); font-weight:600;}
+  .tag.new{background:var(--accent-soft); border-color:var(--accent); color:var(--accent); font-weight:600;}
+  .tag.trk{background:var(--mute-soft);}
+  .tag.done{background:var(--good-soft); border-color:var(--good); color:var(--good);}
+
+  .disp{display:flex; flex-wrap:wrap; gap:5px; margin-top:11px; align-items:center;}
+  .d{border:1px solid var(--rule-2); background:transparent; color:var(--ink-3);
+     padding:4px 9px; font-size:10.5px;}
+  .d:hover:not(:disabled){background:var(--surface-2);}
+  .d.sug{border-style:dashed; border-color:var(--ink-3); color:var(--ink-2);}
+  .d[aria-pressed="true"]{font-weight:600;}
+  .d[data-k="task"][aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .d[data-k="reply"][aria-pressed="true"]{background:var(--critical); border-color:var(--critical); color:#fff;}
+  .d[data-k="cal"][aria-pressed="true"]{background:var(--info); border-color:var(--info); color:#fff;}
+  .d[data-k="know"][aria-pressed="true"],.d[data-k="intel"][aria-pressed="true"]{background:var(--know); border-color:var(--know); color:#fff;}
+  .d[data-k="replied"][aria-pressed="true"],.d[data-k="move"][aria-pressed="true"]{background:var(--good); border-color:var(--good); color:#fff;}
+  .d[data-k="deleg"][aria-pressed="true"]{background:var(--ink); border-color:var(--ink); color:var(--ground);}
+  .d[data-k="fyi"][aria-pressed="true"],.d[data-k="skip"][aria-pressed="true"]{background:var(--mute); border-color:var(--mute); color:#fff;}
+  :root[data-theme="dark"] .d[aria-pressed="true"]{color:#12141a;}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]) .d[aria-pressed="true"]{color:#12141a;}
+  }
+  .more{color:var(--ink-3); padding:4px 8px;}
+
+  .det{display:none; gap:8px; flex-wrap:wrap; align-items:flex-end;
+       margin-top:10px; padding:11px 12px; background:var(--surface-2); border:1px solid var(--rule);}
+  .det.on{display:flex;}
+  .f{display:flex; flex-direction:column; gap:3px;}
+  .f label{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:9.5px;
+           letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3);}
+  .f input,.f select{font:inherit; font-size:13px; padding:5px 7px; background:var(--surface);
+    color:var(--ink); border:1px solid var(--rule-2); border-radius:0;}
+  .f input:focus,.f select:focus{outline:2px solid var(--accent); outline-offset:-1px;}
+  .f input[type=date],.f input[type=time]{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px;}
+  .f.grow{flex:1; min-width:190px;} .f.grow input{width:100%;}
+  .f.bad input,.f.bad select{border-color:var(--critical); background:var(--critical-soft);}
+
+  .verd{display:none; margin-top:9px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+        font-size:11px; letter-spacing:.05em; color:var(--ink-2); align-items:center; gap:9px; flex-wrap:wrap;}
+  .verd.on{display:flex;}
+  .verd .vk{font-weight:700; text-transform:uppercase;}
+  .verd .ok{color:var(--good); font-weight:700;}
+  .verd .fail{color:var(--critical); font-weight:700;}
+  .verd .warnf{color:var(--accent); font-weight:700;}
+
+  .callout{background:var(--surface); border:1px solid var(--rule); border-left:3px solid var(--accent);
+           padding:17px 19px; margin:14px 0 4px;}
+  .callout h3{font-size:15.5px; font-weight:660; margin-bottom:8px;}
+  .callout p{font-size:14.5px; color:var(--ink-2); margin-bottom:8px;}
+  .callout p:last-child{margin-bottom:0;}
+  .callout ul{margin:8px 0 8px 18px;} .callout li{font-size:14.5px; color:var(--ink-2); margin-bottom:5px;}
+  strong{color:var(--ink); font-weight:620;}
+
+  .dock{position:fixed; left:0; right:0; bottom:0; z-index:60; background:var(--surface);
+        border-top:2px solid var(--ink); padding:11px 18px; box-shadow:0 -8px 24px rgba(0,0,0,.09);}
+  .dockin{max-width:880px; margin:0 auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .dockin .st{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11.5px;
+              color:var(--ink-2); letter-spacing:.04em; flex:1; min-width:150px;}
+  .dockin .st b{color:var(--ink);}
+  .pill{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10px;
+        letter-spacing:.09em; text-transform:uppercase; padding:3px 8px; border:1px solid var(--rule-2);
+        color:var(--ink-3);}
+  .pill.ok{border-color:var(--good); color:var(--good); background:var(--good-soft);}
+  .pill.bad{border-color:var(--critical); color:var(--critical); background:var(--critical-soft);}
+  .pill.warn{border-color:var(--accent); color:var(--accent); background:var(--accent-soft);}
+
+  .modal{position:fixed; inset:0; z-index:80; background:rgba(10,11,14,.66);
+         display:none; align-items:center; justify-content:center; padding:18px;}
+  .modal.on{display:flex;}
+  .sheet{background:var(--ground); border:1px solid var(--rule-2); max-width:780px; width:100%;
+         max-height:88vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.45);}
+  .sheet header{padding:16px 20px 12px; border-bottom:1px solid var(--rule); display:flex;
+                align-items:baseline; gap:12px; flex-wrap:wrap;}
+  .sheet header h2{font-size:17px; font-weight:660; flex:1;}
+  .sheet .pad{padding:16px 20px; overflow:auto; flex:1;}
+  .sheet p.lede{font-size:14px; color:var(--ink-2); margin-bottom:14px;}
+  .sheet footer{padding:13px 20px; border-top:1px solid var(--rule); display:flex; gap:9px; flex-wrap:wrap;}
+
+  .plan{border:1px solid var(--rule); margin-bottom:14px;}
+  .plan h4{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10.5px;
+           letter-spacing:.1em; text-transform:uppercase; padding:8px 12px; background:var(--surface-2);
+           border-bottom:1px solid var(--rule); color:var(--ink-2); font-weight:600;
+           display:flex; justify-content:space-between; gap:10px;}
+  .prow{display:flex; gap:10px; padding:8px 12px; border-bottom:1px solid var(--rule);
+        font-size:13px; background:var(--surface); align-items:flex-start;}
+  .prow:last-child{border-bottom:none;}
+  .prow .stat{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10px;
+              letter-spacing:.07em; text-transform:uppercase; width:88px; flex:none; padding-top:2px;}
+  .prow .stat.q{color:var(--ink-3);}
+  .prow .stat.go{color:var(--info);}
+  .prow .stat.ok{color:var(--good); font-weight:700;}
+  .prow .stat.fail{color:var(--critical); font-weight:700;}
+  .prow .txt{flex:1; min-width:0;}
+  .prow .txt em{display:block; font-style:normal; font-size:11.5px; color:var(--critical);
+                font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; margin-top:3px;
+                word-break:break-word;}
+  .banner{padding:12px 14px; margin-bottom:14px; border:1px solid var(--rule-2);
+          font-size:14px; display:none;}
+  .banner.on{display:block;}
+  .banner.ok{background:var(--good-soft); border-color:var(--good); color:var(--ink);}
+  .banner.bad{background:var(--critical-soft); border-color:var(--critical); color:var(--ink);}
+  .banner.busy{background:var(--surface-2);}
+  .banner b{font-weight:680;}
+
+  .legend{display:flex; flex-wrap:wrap; gap:4px 14px; margin:14px 0 0;
+          font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10.5px;
+          letter-spacing:.05em; color:var(--ink-3);}
+  .legend span{display:flex; align-items:center; gap:5px;}
+  .legend i{width:9px; height:9px; display:block;}
+
+  .foot{margin-top:52px; padding-top:18px; border-top:1px solid var(--rule);
+        font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+        font-size:11px; color:var(--ink-3); line-height:1.75;}
+
+  @media (max-width:600px){
+    .ihead{flex-direction:column; gap:5px;}
+    .when{width:auto; display:flex; gap:8px; padding-top:0;}
+    .when b{display:inline;}
+    .wrap{padding-bottom:160px;}
+    .prow{flex-direction:column; gap:4px;} .prow .stat{width:auto;}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none !important;}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="mast">
+    <div class="kicker">Eaton Sumter · EHS CMD · Review Queue</div>
+    <h1>Inbox triage — 30 Jun to 28 Jul</h1>
+    <p class="sub">563 messages since the last import. Everything carrying a task, a deadline, a calendar commitment, or a decision someone is waiting on. Disposition each one, then submit straight to D1.</p>
+    <div class="runline">
+      <span>WINDOW 30-JUN-2026 → 28-JUL-2026</span>
+      <span>SOURCE Inbox_export.CSV</span>
+      <span>PRIOR IMPORT D1 #610–616</span>
+    </div>
+  </div>
+
+  <div class="conn" id="conn">
+    <span class="lbl" id="connLbl">Connecting</span>
+    <span class="msg" id="connMsg">Checking the Worker API…</span>
+    <input type="password" id="tokenIn" placeholder="Paste the Eaton EHS API token" style="display:none" autocomplete="off">
+    <button id="tokenSave" style="display:none">Save token</button>
+    <button id="tokenClear" style="display:none">Change token</button>
+    <button id="connRetry" style="display:none">Retry</button>
+  </div>
+
+  <div class="howto">
+    <b>How this works.</b>
+    <ol>
+      <li>Each item shows a <b>dashed suggestion</b> — tap it to accept, or pick a different disposition.</li>
+      <li>Tasks, replies and calendar items open a small form: due date, priority, note. Defaults are pre-filled.</li>
+      <li><b>Submit</b> writes every decision to D1 through the Worker API. You get a per-row result — written with its new row id, or the exact HTTP status and error. Nothing is marked done unless the API confirmed it.</li>
+      <li>Calendar items also produce a <b>.ics file</b> you can open to drop the events straight into Outlook or Google Calendar.</li>
+    </ol>
+    <div class="legend">
+      <span><i style="background:var(--accent)"></i>Task</span>
+      <span><i style="background:var(--critical)"></i>Reply</span>
+      <span><i style="background:var(--info)"></i>Calendar</span>
+      <span><i style="background:var(--know)"></i>Knowledge / intel</span>
+      <span><i style="background:var(--good)"></i>Handled / move</span>
+      <span><i style="background:var(--mute)"></i>FYI / dismissed</span>
+    </div>
+  </div>
+
+  <div class="prog">
+    <div class="bar" id="bar"></div>
+    <div class="progrow">
+      <span class="c" id="ctText">0 of 0 decided</span>
+      <span class="spacer"></span>
+      <button id="acceptAll">Accept all suggestions</button>
+      <button id="resetAll">Reset</button>
+    </div>
+  </div>
+
+  <div id="feed"></div>
+
+  <div class="foot">
+    EXTRACTED FROM 1,414-ROW OUTLOOK EXPORT · 563 IN WINDOW · 470 AFTER NOISE FILTER<br>
+    DATES INFERRED FROM QUOTED "SENT:" HEADERS — THE EXPORT CARRIES NO RECEIVED-DATE COLUMN<br>
+    WRITES GO TO eaton-ehs-api.cball8475.workers.dev → D1 eaton-ehs-dashboard
+  </div>
+</div>
+
+<div class="dock">
+  <div class="dockin">
+    <span class="pill" id="apiPill">API ?</span>
+    <span class="st" id="dockStat">Nothing decided yet</span>
+    <button id="btnIcs">Calendar .ics</button>
+    <button class="btn-solid" id="btnSubmit" disabled>Submit to D1</button>
+  </div>
+</div>
+
+<div class="modal" id="modal">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <header>
+      <h2 id="sheetTitle">Confirm the writes</h2>
+      <button id="btnClose">Close</button>
+    </header>
+    <div class="pad">
+      <div class="banner" id="banner"></div>
+      <p class="lede" id="sheetLede"></p>
+      <div id="planBody"></div>
+    </div>
+    <footer>
+      <button class="btn-solid" id="btnGo">Write records</button>
+      <button class="btn-danger" id="btnRetry" style="display:none">Retry failed</button>
+      <button id="btnReport" style="display:none">Copy failure report</button>
+    </footer>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   REVIEW QUEUE — live writes to the EHS CMD Worker API.
+   Reusable for Otter transcripts: replace SOURCE + SECTIONS +
+   ITEMS below. Everything under "ENGINE" stays as-is.
+   ============================================================ */
+
+const API = "https://eaton-ehs-api.cball8475.workers.dev";
+
+const SOURCE = {
+  kind: "email",
+  label: "Inbox export 30-Jun → 28-Jul 2026",
+  window: "2026-06-30..2026-07-28",
+  today: "2026-07-28",
+  tag: "inbox-review-2026-07-28"
+};
+
+const SECTIONS = [
+  {id:"hot",   h:"Hot — today and tomorrow", ct:"6 items"},
+  {id:"mesh",  h:"The big assessment — MESH", ct:"5 open",
+   note:"The one you flagged. Three separate threads that are really one body of work, with a hard 31-AUG-26 closure date on the Benchmark actions."},
+  {id:"loto",  h:"LOTO — the live fire", ct:"5 items",
+   note:"Marty has been chasing documentation since 7/21. 11 were overdue then, 21 remain now, sessions are next week. Two problems: bodies in the room, and recording it in the right system."},
+  {id:"jul31", h:"Due by Friday 31 July", ct:"9 deliverables"},
+  {id:"aug",   h:"August", ct:"6 items"},
+  {id:"wait",  h:"People waiting on you", ct:"14 items",
+   note:"Direct asks with no reply in the thread, or replies where you committed to something. Oldest first."},
+  {id:"inj",   h:"Open injury case", ct:"1 case"},
+  {id:"floor", h:"Floor observations", ct:"27 notifications",
+   note:"John Bonello forwarded 27 observations, near misses and SPIN ideas between 6/29 and 7/28. Logging them individually misses the point."},
+  {id:"cal",   h:"Calendar", ct:"16 entries"},
+  {id:"fyi",   h:"Context worth knowing", ct:"6 items"}
+];
+
+const ITEMS = [
+/* ── HOT ────────────────────────────────────────────────── */
+{s:"hot", u:"crit", w:"TUE 28", wn:"now", t:"Yohili wants to meet today on LOTO",
+ b:["He replied to your 11:01 AM &ldquo;TIME SENSITIVE&rdquo; message with &ldquo;Can we meet to discuss today?&rdquo; &mdash; no answer sent yet. The whole LOTO block below hangs on this conversation."],
+ src:"Reyes, Yohili P · Re: LOTO Training - TIME SENSITIVE · 7/28",
+ tags:[["Reply today","hot"],["New","new"]],
+ sug:{d:"reply", who:"Yohili Reyes", due:"2026-07-28", note:"Confirm the 8/4 and 8/5 session structure and the attendee split"}},
+
+{s:"hot", u:"crit", w:"WED 29", wn:"overdue 7/24", t:"OpA workbook publishes Wednesday — close your actions",
+ b:["Sean Bowley is publishing the workbook <strong>Wednesday this week</strong>. Follow-ups were due 7/24. His bar to publish: every opportunity has an action listed, and every action has its opportunity documented. &ldquo;Everything doesn&rsquo;t need to be perfect.&rdquo;"],
+ src:"Bowley, Sean M · Re: OpA - Walk the Wall - Follow Up Due 7/24/26 · 7/25",
+ tags:[["Slipped","hot"],["New","new"]],
+ sug:{d:"task", due:"2026-07-29", pri:"High", note:"Every opportunity needs an action, every action needs its opportunity documented"}},
+
+{s:"hot", u:"crit", w:"TUE 28", wn:"~1:00 PM", t:"Manipulator proposal review with William Love",
+ b:["He asked to sit down with you and Kate today around 1:00 &mdash; he&rsquo;ll be at Mission Critical then hop to Main. Wants to walk the proposals in person because &ldquo;these projects are very complex&rdquo; rather than cold-send them."],
+ src:"William Love, RMH Inc · Manipulator Quotes · 7/27",
+ tags:[["New","new"]],
+ sug:{d:"cal", date:"2026-07-28", time:"13:00", note:"Manipulator proposal review with William Love (RMH) and Kate — Main site"}},
+
+{s:"hot", u:"warn", w:"TUE 28", wn:"on the door", t:"Hearing conservation testing running today — ART schedule",
+ b:["16 slots 12:00&ndash;3:45 PM; Kate was asked to print 2 copies for the door. Related: you observed 4&ndash;5 of Yohili&rsquo;s team in the 2x2 without hearing protection &mdash; if any of them test today, their results are compromised."],
+ src:"Elite Health Solutions · ART schedule 7/28/26 · 7/17",
+ tags:[["New","new"]],
+ sug:{d:"task", due:"2026-07-28", pri:"Medium", note:"Cross-check today's ART roster against the crew seen without hearing protection in the 2x2"}},
+
+{s:"hot", u:"warn", w:"WED 29", wn:"confirmed", t:"Reliable Fire on site Wednesday — booster repair",
+ b:["Josh Hunt confirmed Wednesday works. Open since mid-June; Kate escalated to Ashwin on 7/13 asking for a time &ldquo;ASAP so this can be finished.&rdquo;"],
+ src:"Josh Hunt, Reliable Fire & Security · Re: Quote for booster repair · 7/27",
+ tags:[["New","new"]],
+ sug:{d:"cal", date:"2026-07-29", time:"", note:"Reliable Fire on site — fire pump booster repair"}},
+
+{s:"hot", u:"good", w:"WED 29", wn:"PM", t:"WFH afternoon approved — bring a deliverable",
+ b:["Kate approved the half-day/WFH for the first day of school, with a condition: &ldquo;Make sure you have something that you can do that adds value (Method Sheets/WSRA review or procedure reviews, etc).&rdquo; The press brake die method sheet (Benchmark #343, due 7/31) is the obvious pick."],
+ src:"Fowler, Kate L · RE: Half Dat/WFH · 7/28",
+ tags:[["New","new"]],
+ sug:{d:"cal", date:"2026-07-29", time:"12:00", note:"WFH afternoon (approved by Kate) — work the press brake die method sheet"}},
+
+/* ── MESH ───────────────────────────────────────────────── */
+{s:"mesh", u:"crit", w:"13 JUL", wn:"Kate", t:"MESH Assessment — Crane and Chemicals modules",
+ b:["Kate: &ldquo;Complete the MESH Assessment for your 70-20-10 through BM. Please review the following procedures and note where links may be missing: <span class='mono'>09ESH05</span>, <span class='mono'>14ESH02</span>, <span class='mono'>07WSS425-3</span>.&rdquo;",
+    "Sent to you, Jim Melton, Vanessa Smith and David Kelly. Crane and Chemicals are your two named modules."],
+ src:"Fowler, Kate L · MESH Assessment- Development Plan (Crane and Chemicals) · 7/13",
+ tags:[["Big rock","hot"],["New","new"]],
+ sug:{d:"task", due:"2026-08-31", pri:"High", note:"Crane + Chemicals modules via Benchmark 70-20-10; check 09ESH05, 14ESH02, 07WSS425-3 for missing links"}},
+
+{s:"mesh", u:"warn", w:"31 AUG", wn:"#409", t:"Industrial Truck Operations 1.9 — determine if chains are compliant",
+ b:["Corrective action on record is &ldquo;benchmark with other sites to determine if this is acceptable.&rdquo; Open on your Benchmark action list, not in the tracker."],
+ src:"Benchmark Action Tracking · SUMTER SC Open Actions (Charles Ball) · 7/17",
+ tags:[["New","new"]],
+ sug:{d:"task", due:"2026-08-31", pri:"High", note:"Benchmark action #409 — MESH Self Assessment 8.7 Industrial Truck Operations ID#1.9"}},
+
+{s:"mesh", u:"warn", w:"31 AUG", wn:"#414", t:"Industrial Truck Operations 1.22 — review the refueling SOP",
+ b:["Four sub-parts: review the SOP, review PPE, review training, and settle who actually completes it &mdash; AMH or the employee."],
+ src:"Benchmark Action Tracking · 7/17",
+ tags:[["New","new"]],
+ sug:{d:"task", due:"2026-08-31", pri:"High", note:"Benchmark action #414 — 8.7 Industrial Truck Operations ID#1.22; SOP + PPE + training + ownership"}},
+
+{s:"mesh", u:"warn", w:"31 AUG", wn:"#416", t:"Fall Protection & Ladders 1.1 — Loyd retired, onboard a new supervisor",
+ b:["A named ownership gap. Needs a person identified and onboarded, not a document update."],
+ src:"Benchmark Action Tracking · 7/17",
+ tags:[["New","new"]],
+ sug:{d:"task", due:"2026-08-31", pri:"High", note:"Benchmark action #416 — 8.5 Fall Protection / Working at Heights ID#1.1"}},
+
+{s:"mesh", u:"warn", w:"23 JUL", wn:"ongoing", t:"EHS program ownership — train the MESH champions",
+ b:["Kate circulated <span class='mono'>ehsprogramownership_004.pptx</span> with a responsibility flow chart: &ldquo;I will formalize these but Benchmark assignments will be given to these team members. Expectation is to train MESH champions, do the annual assessment, and complete any required tasks.&rdquo;"],
+ src:"Fowler, Kate L · ehsprogramownership_004.pptx · 7/23",
+ tags:[["New","new"]],
+ sug:{d:"task", due:"2026-08-14", pri:"Medium", note:"Train MESH champions per Kate's responsibility flow chart; Benchmark assignments to follow"}},
+
+{s:"mesh", u:"good", w:"8 JUL", wn:"closed", t:"August MESH training modules — already cleared",
+ b:["Olivia Watford asked you and Kate to review the Driver Safety and Safety Signs modules by 22JUL. You replied 7/8: &ldquo;Im not aware of any needed updates to these. They are good as is.&rdquo;"],
+ src:"Watford, Olivia · August MESH Training Module Review · 7/6–7/8",
+ tags:[["Done","done"]],
+ sug:{d:"replied"}},
+
+/* ── LOTO ───────────────────────────────────────────────── */
+{s:"loto", u:"crit", w:"TUE 4<br>WED 5", wn:"10a–12p", t:"21 people to assess across two sessions — need the attendee split",
+ b:["You put Tue 8/4 and Wed 8/5, 10am&ndash;12pm on the calendar and told Yohili all 21 must be assessed in those two windows, starting with the crew already overdue. Outstanding: a list of who attends which session, and everyone arriving with gloves, locks and tags ready. If it doesn&rsquo;t clear, you said you&rsquo;d pull someone from your team to finish it."],
+ src:"Ball, Charlie → Reyes, Yohili P · LOTO Training - TIME SENSITIVE · 7/28",
+ tags:[["Blocking","hot"],["New","new"]],
+ sug:{d:"task", due:"2026-08-04", pri:"High", note:"Sessions 8/4 and 8/5 10a-12p; need attendee split from Yohili; 21 remaining"}},
+
+{s:"loto", u:"crit", w:"ASAP", wn:"Marty+Yohili", t:"Create the LOTO class in the EUE app",
+ b:["Yohili asked directly on 7/27: &ldquo;can you please create the class in EUE application? I can share with my team, the attendees scan the QR code to record their attendance.&rdquo; Marty confirmed the rule &mdash; all LOTO training must be scheduled and documented in Eaton University for Enterprise, each session generating a unique PIN. He attached the work instructions."],
+ src:"Reyes / Honney · RE: Overdue Notification for LOTO Authorized Users · 7/27",
+ tags:[["Blocking","hot"],["New","new"]],
+ sug:{d:"task", due:"2026-07-30", pri:"High", note:"EUE app class creation + QR attendance; work instructions attached to Marty's 7/27 email"}},
+
+{s:"loto", u:"crit", w:"OVERDUE", wn:"since 7/27", t:"Upload last week's completed assessments to EUE",
+ b:["You told Marty on 7/27: &ldquo;I have completed last weeks training but have not uploaded anything yet&hellip; I thought I needed to only upload to Benchmark.&rdquo; Until this lands, Eaton University still shows those people overdue and the thread stays open."],
+ src:"Honney, Ronald Marty M · 7/27",
+ tags:[["Overdue","hot"],["New","new"]],
+ sug:{d:"task", due:"2026-07-29", pri:"High", note:"Results go in EUE, not just Benchmark"}},
+
+{s:"loto", u:"warn", w:"BEFORE 8/4", wn:"", t:"Mission Critical crew locks don't fit the group box",
+ b:["&ldquo;The locks that you were providing to the Mission Critical crew will not work. They do not fit into the LOTO group box.&rdquo; You offered to help identify the right ones &mdash; needs settling before 8/4 or it repeats the 20-minute delay from last time."],
+ src:"Ball, Charlie → Reyes · 7/28",
+ tags:[["New","new"]],
+ sug:{d:"task", due:"2026-08-01", pri:"Medium", note:"Identify compatible locks for the MC crew before the 8/4 session"}},
+
+{s:"loto", u:"warn", w:"31 JUL", wn:"quarterly", t:"Gensuite inspection: LOTO + Electrical Verification of Proficiency",
+ b:["Period 01-May &rarr; 31-Jul-2026, you are the designated lead. Two reminders sent (7/14, 7/15). This is the formal record of the verification work, separate from the EUE training documentation."],
+ src:"Benchmark Inspection Tool · Upcoming Inspection · 7/14 & 7/15",
+ tags:[["New","new"],["near D1 #708, #713","trk"]],
+ sug:{d:"task", due:"2026-07-31", pri:"High", note:"Quarterly Gensuite inspection, period 05-01 to 07-31; Charlie is lead"}},
+
+/* ── 31 JUL ─────────────────────────────────────────────── */
+{s:"jul31", u:"warn", w:"31 JUL", wn:"new", t:"Set up the Benchmark app on the security phone and train Bri",
+ b:["Kate moved the monthly security inspections for Main Plant and MC into Benchmark, assigned to Briana Cook &mdash; same form, now online with photo capture. Your piece: &ldquo;please set up the benchmark app on the security phone and show Bri how to access the inspection.&rdquo; First due 7/31; the reminder already fired to Bri on 7/23."],
+ src:"Fowler, Kate L · Security Monthly Inspections · 7/15",
+ tags:[["New","new"]],
+ sug:{d:"task", due:"2026-07-31", pri:"High", note:"Install Benchmark app on security phone, walk Briana Cook through the inspection"}},
+
+{s:"jul31", u:"warn", w:"31 JUL", wn:"site-wide", t:"July Eaton University assigned training",
+ b:["Kate: &ldquo;Please get your EU training done for the month.&rdquo; Site-wide there are 668 incomplete trainings due by 7/31; Cranes/Hoists/Lifting Devices Hazard Refresher sits at 83%, Contractor Awareness Refresher at 85%. Check yours and your team&rsquo;s via the MY TEAM tab."],
+ src:"Fowler / Watford · Incomplete July Eaton University Assigned Training · 7/22",
+ tags:[["New","new"]],
+ sug:{d:"task", due:"2026-07-31", pri:"Medium", note:"Own training + MY TEAM tab check"}},
+
+{s:"jul31", u:"warn", w:"OVERDUE", wn:"×3 notices", t:"Ariba GR postings — suppliers aren't getting paid",
+ b:["Three &ldquo;Action Required: GR Posting Needed&rdquo; reminders (7/13, 7/16, 7/17). Delivery dates on your POs have passed; receipts must be posted in Guided Buying before suppliers can be paid. Worth clearing in one sitting."],
+ src:"Ariba Guided Buying · Action Required: GR Posting Needed",
+ tags:[["New","new"]],
+ sug:{d:"task", due:"2026-07-31", pri:"Medium", note:"Post goods receipts for all overdue POs in Ariba Guided Buying"}},
+
+{s:"jul31", u:"warn", w:"THU 30", wn:"9:30–12", t:"Press Brake Die Changeout meeting — room was declined",
+ b:["The Executive Room rejected your booking: conflict with Marty Honney, Thu 7/30 9:30&ndash;12. Needs a new room or a new time, and it&rsquo;s the working session for Benchmark #343 which closes 7/31."],
+ src:"RES-EG-SUMSC-Executive Room · Declined · 7/27",
+ tags:[["New","new"],["D1 #690","trk"]],
+ sug:{d:"task", due:"2026-07-29", pri:"High", note:"Rebook room or time — Exec Room conflicts with Marty Honney"}},
+
+{s:"jul31", u:"calm", w:"31 JUL", wn:"#343", t:"Review and update the press brake die change method sheet",
+ b:["Benchmark 8D, Process Standardization. Already on the tracker."],
+ src:"Benchmark Action Tracking",
+ tags:[["Tracked · D1 #690","trk"]],
+ sug:{d:"skip", note:"Already tracked as D1 #690"}},
+
+{s:"jul31", u:"calm", w:"31 JUL", wn:"162/163/167/169", t:"Four GHG energy projects + SharePoint updates",
+ b:["Vacuum lift solenoid, spot welding solenoid, press brake pressure mats, and replacing compressed air with electric blowers/vacuums &mdash; each closes with an update to GHG Reduction on SharePoint. Kate accepted your &ldquo;Discuss Updates for GHG Reduction on Sharepoint&rdquo; invite on 7/25."],
+ src:"Benchmark Action Tracking · Projects / Energy Management",
+ tags:[["Tracked · D1 #691–694","trk"]],
+ sug:{d:"skip", note:"Already tracked as D1 #691-694"}},
+
+/* ── AUGUST ─────────────────────────────────────────────── */
+{s:"aug", u:"crit", w:"THU 6", wn:"10:00 AM", t:"AXA XL Risk Consulting site visit — you are the on-site contact",
+ b:["Kate named you: &ldquo;8/6 works for me, could we push to 10am? Please remind me which documents your team will want to review. @Ball, Charlie will be your on site contact.&rdquo; Insurer risk-engineering visit coordinated through Marsh. The document list hasn&rsquo;t come back &mdash; worth chasing so you&rsquo;re not assembling it that morning."],
+ src:"Fowler, Kate L · RE: Site Visit - AXA XL Risk Consulting · 7/27",
+ tags:[["Owns it","hot"],["New","new"]],
+ sug:{d:"cal", date:"2026-08-06", time:"10:00", note:"AXA XL Risk Consulting site visit — Charlie is on-site contact; chase the document list first"}},
+
+{s:"aug", u:"warn", w:"MON 31 AUG", wn:"PI is 9/1", t:"Physical inventory prep — fall protection + scissor lift certification",
+ b:["Kate to Amit: training runs the day before PI, &ldquo;fall protection and lanyard training first then scissor lift certification,&rdquo; a few hours depending on headcount. Amit still needs the confirmed day and the number of lifts. Watch the vacation/LOA overlap &mdash; that&rsquo;s what the thread was originally about."],
+ src:"Fowler / Patwari · Physical Inventory - Vacations and LOA · 7/15",
+ tags:[["New","new"]],
+ sug:{d:"task", due:"2026-08-24", pri:"Medium", note:"Confirm day + lift count with Amit; fall protection/lanyard then scissor lift cert on 8/31"}},
+
+{s:"aug", u:"warn", w:"MON 10", wn:"assigned", t:"Phishing training — due 8/10",
+ b:["You clicked the July campaign lure (spoofed Amazon delivery notice from <span class='mono'>amaz0n.com</span>). 7-minute course from CIRT. You also got a &ldquo;Congratulations on recognizing a phish!&rdquo; on a different one the same day."],
+ src:"Eaton Cybersecurity Incident Response Team · 7/8",
+ tags:[["New","new"]],
+ sug:{d:"task", due:"2026-08-10", pri:"Low", note:"7-minute CIRT phishing course"}},
+
+{s:"aug", u:"warn", w:"AUG", wn:"open Q", t:"Crane inspections — are the repairs authorized?",
+ b:["Kate asked Trevor Getty on 7/16: &ldquo;Have we authorized the repairs on the cranes/hoists that need them?&rdquo; &mdash; no answer in the thread since. Engineered Systems inspects in August; ATS quoted time-and-materials averaging <span class='mono'>$5,050.30/month</span>."],
+ src:"Fowler / Getty · Crane Insp. for August - Engineered Systems · 7/16",
+ tags:[["New","new"],["D1 #616","trk"]],
+ sug:{d:"reply", who:"Trevor Getty", due:"2026-07-30", note:"Chase the repair authorization answer ahead of the August inspection"}},
+
+{s:"aug", u:"calm", w:"TUE 4", wn:"Nissa", t:"Monthly Pressure Vessel Inspection due 8/4",
+ b:["Assigned to Nissa Mccoy Law, Main Plant / Plant Wide. Awareness only unless she needs cover."],
+ src:"Benchmark Inspection Tool · 7/27",
+ tags:[["FYI","trk"]],
+ sug:{d:"fyi", note:"Nissa owns it; watch for a cover request"}},
+
+{s:"aug", u:"calm", w:"31 AUG", wn:"409/414/416", t:"Three MESH self-assessment actions",
+ b:["Detailed in the MESH section above &mdash; disposition them there."],
+ src:"Benchmark Action Tracking",
+ tags:[["See MESH","trk"]],
+ sug:{d:"skip", note:"Duplicate of the MESH section entries"}},
+
+/* ── WAITING ON YOU ─────────────────────────────────────── */
+{s:"wait", u:"crit", w:"7/14", wn:"2 asks", t:"Kaylor: did Kierra Mack pass her forklift cert?",
+ b:["Asked 7/14, no answer in the thread. She also appears on the 7/16 Yard Dog training roster, so the record matters."],
+ src:"Kaylor, Robert E · Kierra Mack forklift cert · 7/14",
+ tags:[["14 days","hot"],["New","new"]],
+ sug:{d:"reply", who:"Robert Kaylor", due:"2026-07-29", note:"Confirm Kierra Mack forklift cert result"}},
+
+{s:"wait", u:"warn", w:"7/24", wn:"", t:"Kaylor: crane training for Synai Brayboy — and how do we add it at all?",
+ b:["Two asks in one: schedule Synai Brayboy, and &ldquo;Need to get an associate trained on the crane, I do not see it on this list. How do we go about this?&rdquo; The second is a process gap, not a scheduling request."],
+ src:"Kaylor, Robert E · Crane training / Synai Brayboy crane training · 7/24",
+ tags:[["New","new"]],
+ sug:{d:"reply", who:"Robert Kaylor", due:"2026-07-30", note:"Schedule Synai Brayboy + explain how crane training gets requested"}},
+
+{s:"wait", u:"warn", w:"7/27", wn:"", t:"Chris Miller: Box Truck Training login doesn't work",
+ b:["&ldquo;Trying to sign one of my employees up for the Box Truck Training and the log in information provided on Linktree is not working? Any help here or can you steer me to the correct person?&rdquo;"],
+ src:"Miller, Chris · Box Truck Training · 7/27",
+ tags:[["New","new"]],
+ sug:{d:"reply", who:"Chris Miller", due:"2026-07-29", note:"Fix or reroute the Linktree box truck training credentials"}},
+
+{s:"wait", u:"crit", w:"7/13", wn:"", t:"Property damage at the RAS — was it ever documented?",
+ b:["Chris Miller: &ldquo;Came in this morning to this TV Monitor damage at the RAS. Was this reported over the weekend and documented?&rdquo; Kaylor confirmed the operator &mdash; Earl on Forklift #11 &mdash; but no incident record is referenced anywhere in the thread."],
+ src:"Miller / Kaylor · Property Damage / Tab property damage by the RAS · 7/13",
+ tags:[["No record","hot"],["New","new"]],
+ sug:{d:"task", due:"2026-07-30", pri:"High", note:"Confirm/create the incident record; Earl, Forklift #11, TV monitor at the RAS"}},
+
+{s:"wait", u:"warn", w:"7/13", wn:"recurring", t:"Paint Line — pallet of boxes stacked unsafely",
+ b:["Chris Miller with a photo, and it&rsquo;s a repeat: &ldquo;Also had this issue in the AM.&rdquo; He asked Jesse to have the orders removed and the boxes down-stacked."],
+ src:"Miller, Chris · Safety concern · 7/13",
+ tags:[["New","new"]],
+ sug:{d:"task", due:"2026-07-31", pri:"Medium", note:"Verify the Paint Line down-stack happened and whether it needs a standard"}},
+
+{s:"wait", u:"warn", w:"7/16", wn:"you committed", t:"Fan requests — consolidate and find the money",
+ b:["Chelsea Moses submitted via the QR suggestion form repeatedly over several weeks with no feedback, asking for two fans near Laser 1 and Laser 2 &mdash; and noting ~6 unused blue fans near Set-Up that could be relocated instead of buying. You replied 7/24: &ldquo;We have had A LOT of fan requests recently. I need to put them all together and figure out where the $$ is going to come from.&rdquo;",
+    "Open fan threads: Chelsea (Laser 1 &amp; 2), Kaylor (Laser 2 conveyor end), Brownlee (Mission Critical storeroom, and fabrication dept), plus the kitting-area fan from June."],
+ src:"Moses, Chelsea K · Fabrication-Safety/Continuous Improvement idea · 7/16–7/24",
+ tags:[["Committed","hot"],["New","new"]],
+ sug:{d:"task", due:"2026-08-07", pri:"Medium", note:"Consolidate all open fan requests into one funded package; check the 6 unused blue fans near Set-Up first"}},
+
+{s:"wait", u:"warn", w:"7/16", wn:"", t:"Jim Melton: review both Gemba forms",
+ b:["He revised the Focused EHS Gemba and the Quick EHS GEMBA (the one on Linktree), fixed typos, made them Sumter-specific, and built a name dropdown for question 1 so KPIs calculate cleanly. Wants your review and dropdown additions before he takes it to CI for Power BI."],
+ src:"Melton, James H · New Gemba Form and Tracking · 7/16–7/17",
+ tags:[["New","new"],["D1 #715","trk"]],
+ sug:{d:"reply", who:"Jim Melton", due:"2026-07-31", note:"Review both forms + the dropdown name list"}},
+
+{s:"wait", u:"warn", w:"7/17", wn:"", t:"Hunter Truett: Amada operator training compliance",
+ b:["Convening on recent training gaps: is the training matrix current, what defines &ldquo;fully trained&rdquo; (classroom PPT, signed OTJ checklist, signed competency evaluation, EU sign-off), and how documentation gets verified before it reaches Marty."],
+ src:"Truett, Hunter D · Amada Operator Training Process and Compliance · 7/17",
+ tags:[["New","new"]],
+ sug:{d:"task", due:"2026-08-07", pri:"Medium", note:"Define 'fully trained' criteria and the verification step before submission to Marty"}},
+
+{s:"wait", u:"crit", w:"7/14", wn:"Kate", t:"Severe Injury Call — reinforce the 3\" hand tool rule",
+ b:["Kate: &ldquo;Severe incidents are climbing again&hellip; please share tmrw and reinforce the 3&quot; hand tool requirement. This is something that would be progressive discipline if skipped.&rdquo; Driven by the Fayetteville press brake fracture. She&rsquo;s formatting it as a Lessons Learned for the whole site with a Gemba form."],
+ src:"Fowler, Kate L · Fw: Pre-read Monthly Severe Injury Call (16-July) · 7/14",
+ tags:[["Direct ask","hot"],["New","new"]],
+ sug:{d:"task", due:"2026-07-30", pri:"High", note:"Progressive discipline is now on the table for skipping the 3-inch hand tool rule"}},
+
+{s:"wait", u:"warn", w:"7/15", wn:"Kate", t:"Press brake strategy — increased visibility coming",
+ b:["Kate on the Asheville PSI where an AI system stopped an amputation: &ldquo;It&rsquo;s worth reviewing and reinforcing the PB strategy/timeline since there will be increased visibility.&rdquo; Ties to the Sentry vision cameras already on your list."],
+ src:"Fowler, Kate L · Fw: ESA EHS Power Series · 7/15",
+ tags:[["New","new"],["near D1 #655","trk"]],
+ sug:{d:"task", due:"2026-08-07", pri:"High", note:"Refresh the press brake strategy/timeline ahead of the visibility bump"}},
+
+{s:"wait", u:"calm", w:"7/13", wn:"Kate", t:"New supervisor onboarding — review the safety policy",
+ b:["Checklist circulated to you, Jennifer Sumter, Craig Brown, Stephanie Brownlee and Derrick Mcdonald. &ldquo;Time to review the safety policy.&rdquo;"],
+ src:"Fowler, Kate L · New Supervisor Onboarding · 7/13",
+ tags:[["New","new"]],
+ sug:{d:"task", due:"2026-08-07", pri:"Low", note:"Safety policy section of the supervisor onboarding checklist"}},
+
+{s:"wait", u:"calm", w:"7/21", wn:"", t:"Ergo panelboard shipping box lifters — hoist question open",
+ b:["The contractor says it can&rsquo;t attach to the hoist. Kate asked William for a budgetary number and whether an electric hoist can replace the pneumatic one. Same vendor as the manipulator quotes, so it can ride along with today&rsquo;s meeting."],
+ src:"Fowler / William Love · Ergo Panelboard Shipping Box Lifters · 7/21",
+ tags:[["New","new"]],
+ sug:{d:"task", due:"2026-07-31", pri:"Medium", note:"Fold into the RMH meeting — electric vs pneumatic hoist budgetary"}},
+
+{s:"wait", u:"warn", w:"7/22", wn:"", t:"Vehicle incident 7/22 — no follow-up visible",
+ b:["Briana Cook forwarded it: brown truck, Sean West (MC) and Honda, Ny&rsquo;Cola Williams (main plant). Nothing in the thread since."],
+ src:"Cook, Briana · Fw: incident on 7/22/26 · 7/22",
+ tags:[["New","new"]],
+ sug:{d:"task", due:"2026-07-30", pri:"Medium", note:"Confirm whether the 7/22 vehicle incident was recorded and closed out"}},
+
+{s:"wait", u:"calm", w:"7/13", wn:"", t:"Press brake glove color + PPE standardization",
+ b:["Two live vendor threads with Greg Steele and Amy Ross at Vallen, plus 3M, both stemming from the Ketan Adavade site visit findings (Greg #8, PPE standardization)."],
+ src:"Vallen / 3M · Press Brake Operator Glove Color · 7/13",
+ tags:[["New","new"]],
+ sug:{d:"fyi", note:"Kate is driving; stay on the thread"}},
+
+/* ── INJURY ─────────────────────────────────────────────── */
+{s:"inj", u:"crit", w:"DOI 7/16", wn:"case 991296", t:"Jay Gainey — right middle finger",
+ b:["Six WorkCare notifications landed 7/21&ndash;7/25 on one case: first aid notification, discomfort onsite follow-up, peer consultation, intake and self-care assessment, scheduled clinic visit, and outcome of clinic visit. Employee self-referral, onsite encounter, initial call 7/27 &mdash; <strong>11 days after the date of injury</strong>. That reporting lag is its own finding. Recordability determination is the open question."],
+ src:"WorkCare IIPS · Jay Gainey DOI 07/16/2026 · 7/21–7/25",
+ tags:[["Recordability","hot"],["Tracked · D1 #730","trk"]],
+ sug:{d:"task", due:"2026-07-29", pri:"High", note:"Determine recordability; separately address the 11-day gap between injury and initial call"}},
+
+{s:"inj", u:"calm", w:"ROUTINE", wn:"~30 notices", t:"WorkCare preventative activity notifications",
+ b:["Roughly 30 routine preventative-activity emails for individual employees between 7/17 and 7/27. No action indicated on any of them."],
+ src:"WorkCare IIPS",
+ tags:[["No action","trk"]],
+ sug:{d:"skip", note:"Routine health surveillance notices"}},
+
+/* ── FLOOR ──────────────────────────────────────────────── */
+{s:"floor", u:"crit", w:"6/29–7/28", wn:"18 of 27", t:"Fabrication–Copper has a pallet and material storage capacity problem",
+ b:["<strong>18 of the 27</strong> observations come from Fabrication&ndash;Copper under Gloria Carter, and nearly all describe the same failure mode: pallets leaning against full racks, material overhanging racks into walkways, broken pallet wood with exposed nails, blocked aisles.",
+    "<strong>It produced an actual injury.</strong> 7/27 &mdash; Tiffany Parker &ldquo;tripped and fell&rdquo; on a pallet left on the floor.",
+    "<strong>An employee already named the root cause.</strong> Sandra Malone, 7/21: two pallets leaning against a rack &ldquo;which is already full &mdash; need more pallet space or storage.&rdquo;",
+    "<strong>Two SPIN ideas point at clearance, not housekeeping.</strong> Shamar Fludd filed both 7/13: insufficient space between the EHRT machines and their walkways, and between the brake press machines and surrounding walkways. On 7/23 he added that when kitters work PB25 and PB28 there is no aisle to reach EHRT 2 from the front.",
+    "By category: material exceeding rack length or the 86&quot; height limit (4&times;), pallets stored improperly (7&times;), debris and exposed nails (4&times;), boxes in front of electrical panels (1&times;).",
+    "One corrective action for storage capacity and aisle clearance in Copper would close most of this. Filing 18 separate housekeeping tickets would not."],
+ src:"Bonello, John · 27 Safety Notification forwards · 6/29–7/28",
+ tags:[["Systemic","hot"],["New","new"]],
+ sug:{d:"task", due:"2026-08-14", pri:"High", note:"Single corrective action for Copper pallet storage capacity + aisle clearance; 18 observations, 1 fall, 2 SPINs"}},
+
+{s:"floor", u:"warn", w:"6/29", wn:"equipment", t:"Staple gun in Box/Trim pinched a finger — needs a work order",
+ b:["Kayla Bennett, near miss: &ldquo;Finger got pinched on the staple gun while using it. The staple gun needs to be looked at.&rdquo; The only observation in the batch reporting an equipment defect rather than housekeeping."],
+ src:"Bonello, John · Safety Notification · 6/29",
+ tags:[["New","new"]],
+ sug:{d:"task", due:"2026-07-31", pri:"Medium", note:"MaintainX work order for the Box/Trim staple gun"}},
+
+{s:"floor", u:"calm", w:"6/29–7/28", wn:"9 others", t:"Observations outside Copper",
+ b:["Board with nails point-up in Steel. Pallets stacked over 6ft in Steel. BUS overhanging a walkway. New employee without glasses and plugs. Yellow floor tape lifting into a trip hazard. Wire pushing outward on a rack, 7/28. All show a corrective action already taken by the reporter."],
+ src:"Bonello, John · Safety Notification forwards",
+ tags:[["Closed on the spot","trk"]],
+ sug:{d:"know", note:"Steel/Box-Trim observations self-closed by reporters; useful as a Gemba trend baseline"}},
+
+/* ── CALENDAR ───────────────────────────────────────────── */
+{s:"cal", u:"warn", w:"THU 30", wn:"9:30–12", t:"Press Brake Die Changeout — needs rebooking",
+ b:["Room declined, conflicts with Marty Honney. Handled in the 31 July section; listed here so it isn&rsquo;t lost on the calendar sweep."],
+ src:"RES-EG-SUMSC-Executive Room · 7/27",
+ tags:[["See 31 Jul","trk"]],
+ sug:{d:"skip", note:"Dispositioned in the 31 July section"}},
+
+{s:"cal", u:"calm", w:"ONGOING", wn:"from 7/27", t:"Audiometric truck on site",
+ b:["Parked on the grass near SWBD shipping from Mon 7/27. Jim sent the first three days; the rest of the schedule follows &ldquo;early next week.&rdquo; Supervisors are responsible for getting their people to their slots."],
+ src:"Melton, James H · Audio Testing · 7/17",
+ tags:[["New","new"]],
+ sug:{d:"know", note:"Audiometric testing window; watch for the remainder of the schedule from Jim"}},
+
+{s:"cal", u:"calm", w:"RECURRING", wn:"Tuesdays", t:"Project Alignment Meeting moved to Tuesdays",
+ b:["Trevor Getty&rsquo;s meeting; now Tuesdays because IT isn&rsquo;t available Mondays. Today&rsquo;s instance was moved at Hunter Truett&rsquo;s request."],
+ src:"Getty, Trevor · Project Alignment Meeting · 7/28",
+ tags:[["New","new"]],
+ sug:{d:"know", note:"Project Alignment now runs Tuesdays (IT unavailable Mondays)"}},
+
+{s:"cal", u:"calm", w:"RECURRING", wn:"Gireesh", t:"Fab Business Team meeting",
+ b:["Recurring Teams meeting from Gireesh Challawar. Your BT deck prep is already tracked as D1 #559 and #729."],
+ src:"Challawar, Gireesh R · Fab - Business Team Meeting · 7/13",
+ tags:[["D1 #559, #729","trk"]],
+ sug:{d:"skip", note:"Prep already tracked"}},
+
+{s:"cal", u:"calm", w:"ACCEPTED", wn:"Lean Conf Rm", t:"Copper Tugger Rollout · Safety Projects + Method Sheet · PB Discussion",
+ b:["All three accepted. The tugger workstream is already carrying five tracked tasks (D1 #670&ndash;674, #732)."],
+ src:"RES-EG-SUMSC-Lean Conf Rm · 7/8–7/13",
+ tags:[["Tracked","trk"]],
+ sug:{d:"skip", note:"Tugger workstream already tracked"}},
+
+{s:"cal", u:"good", w:"PASSED", wn:"7/22 & 7/23", t:"ES-A Quarterly EHS Leadership Series · CPA Q3 All Hands",
+ b:["Both have happened. Worth noting: <strong>Kylie Taylor, Production Supervisor at Sumter, was a featured speaker</strong> on the ES-A EHS leadership call alongside plant managers from Cleveland, Fayetteville and Coamo. That is site visibility at the division level."],
+ src:"Restaneo / Pate · 7/21 & 6/29",
+ tags:[["Site visibility","new"]],
+ sug:{d:"intel", who:"Kylie Taylor", note:"Featured speaker on the ES-A Quarterly EHS Leadership Series, 7/22 — division-level visibility for Sumter"}},
+
+/* ── FYI ────────────────────────────────────────────────── */
+{s:"fyi", u:"calm", w:"7/21", wn:"", t:"ESS Industrial does not quiz contractors on LOTO",
+ b:["Garrett Stewart: &ldquo;We don&rsquo;t administer quizzes for LOTO. Our men have their own locks but if the crane needs to be locked out we can get ATS to help.&rdquo; Relevant to the contractor LOTO verification you&rsquo;re tracking for the Laser 4 install."],
+ src:"Garrett Stewart, ESS Industrial · 7/21",
+ tags:[["D1 #712","trk"]],
+ sug:{d:"know", note:"ESS Industrial: no LOTO quizzes, own locks, ATS assists on crane lockout"}},
+
+{s:"fyi", u:"warn", w:"7/14", wn:"", t:"Compliance calendar past-due list is mostly Jim's",
+ b:["The 14-Jul status report shows past-due items through June: waste accumulation weekly inspection, storm water annual and quarterly, SWPPP annual and quarterly, SPCC quarterly, waste manifest review, and the 50% workstation risk assessment review &mdash; all Jim Melton. Your semi-annual respirator inspection showed past due 26-Jun but closed 15-Jul."],
+ src:"Benchmark Compliance Calendar · 7/14",
+ tags:[["New","new"]],
+ sug:{d:"know", note:"9 environmental compliance tasks past due under Jim Melton as of 14-Jul"}},
+
+{s:"fyi", u:"calm", w:"7/13", wn:"", t:"Org changes",
+ b:["Steve Deal announcement. <strong>Taylor Nations moved out of the AXA XL contact role</strong> into Product Line Manager, Busway &mdash; which is why that visit landed on Kate and you. Matthew Quintana, Regional Marketing Manager Gulf. Dylan Bonczek, Program Manager. Alberto Sandoval Moreno, Flex Center Manager, Dry-Type Distribution Transformers."],
+ src:"CPA Organizational Announcements · 7/6–7/21",
+ tags:[["New","new"]],
+ sug:{d:"know", note:"Taylor Nations → Product Line Manager Busway; handed the AXA XL relationship to Kate/Charlie"}},
+
+{s:"fyi", u:"calm", w:"6/30", wn:"", t:"Sleeves shortage nearly stopped production",
+ b:["Kate to Vallen, 6/30: &ldquo;Do we have an eta on sleeves? We will shut production down completely today if we do not receive any. I need them by 8am.&rdquo; Resolved, but worth remembering as a PPE supply fragility."],
+ src:"Fowler, Kate L · Sleeves · 6/30",
+ tags:[["New","new"]],
+ sug:{d:"know", note:"PPE sleeve supply can halt production within a day — single-vendor risk with Vallen"}},
+
+{s:"fyi", u:"good", w:"JUL", wn:"", t:"Closed in Benchmark and MaintainX this month",
+ b:["Semi-annual respirator inspection and cleaning 2026 (15-Jul). Paint booth exit sign cleaning (08-Jul) &mdash; though it reopened and is due again 1-Aug under Robert Miller. Guardrail near the scrap bin staging area outside Laser 1, and the spotweld fire extinguisher relocation, both completed via MaintainX (7/10, 7/15)."],
+ src:"Benchmark / MaintainX · July",
+ tags:[["Closed","done"]],
+ sug:{d:"skip", note:"Closed items, no action"}},
+
+{s:"fyi", u:"warn", w:"7/28", wn:"", t:"Yohili's 2x2 location is a PPE problem",
+ b:["Not a task, but the finding you documented: over half his team was in a meeting without hearing protection in an area loud enough to require it, and one person pushed back when told. You told him to move the meeting location and looped Kate in. Worth watching whether it changes."],
+ src:"Ball, Charlie → Reyes · 7/28",
+ tags:[["New","new"]],
+ sug:{d:"intel", who:"Yohili Reyes", note:"Ran a 2x2 in a high-noise area with most of his team unprotected; pushback from one employee when corrected. Zero communication to EHS across the LOTO scheduling failure. Kate looped in 7/28."}},
+];
+
+/* ============================================================
+   ENGINE — generic, do not edit per-source
+   ============================================================ */
+
+/* Mirrors the Worker's ENUMS block (infra/worker-api.mjs). Kept in sync so a bad
+   value is caught here with a pointed message instead of coming back as a 400. */
+const ENUMS = {
+  status: ["todo","wip","done","projects","undated"],
+  priority: ["High","Medium","Low"],
+  ownership: ["mine","fyi"],
+  intel_type: ["relationship","political","working_style","reliability","alignment",
+               "history","strength","weakness","opportunity"]
+};
+
+const SRC_TAG = SOURCE.tag;
+
+/* Each disposition declares the endpoint it writes to and how to build the body.
+   `endpoint:null` means it is recorded locally and never hits the API. */
+const DISPOSITIONS = {
+  task: {
+    label:"Task", needs:["due","pri","note"], endpoint:"/tasks",
+    desc:"New task in D1, ownership mine",
+    build:(it,v)=>({
+      title: plain(it.t),
+      description: v.note || plain(it.b && it.b[0]) || null,
+      due_date: v.due || null,
+      priority: v.pri || "Medium",
+      status: "todo",
+      ownership: "mine",
+      source: SOURCE.kind,
+      source_label: plain(it.src),
+      tags: SRC_TAG,
+      ai_extracted: 1
+    })
+  },
+  reply: {
+    label:"Need reply", needs:["who","due","note"], endpoint:"/tasks",
+    desc:"Task tagged reply, waiting on them",
+    build:(it,v)=>({
+      title: "Reply: " + plain(it.t),
+      description: v.note || plain(it.b && it.b[0]) || null,
+      due_date: v.due || null,
+      priority: "High",
+      status: "todo",
+      ownership: "mine",
+      waiting_on: v.who || null,
+      source: SOURCE.kind,
+      source_label: plain(it.src),
+      tags: SRC_TAG + ",reply",
+      ai_extracted: 1
+    })
+  },
+  replied: { label:"Replied", needs:[], endpoint:null, desc:"Already handled, nothing written" },
+  cal: {
+    label:"Calendar", needs:["date","time","note"], endpoint:"/tasks",
+    desc:"Reminder task in D1 + a .ics event",
+    build:(it,v)=>({
+      title: plain(it.t),
+      description: v.note || plain(it.b && it.b[0]) || null,
+      due_date: v.date || null,
+      priority: "High",
+      status: "todo",
+      ownership: "mine",
+      source: SOURCE.kind,
+      source_label: plain(it.src),
+      tags: SRC_TAG + ",calendar",
+      notes: v.time ? ("Event time: " + v.time) : "All day",
+      ai_extracted: 1
+    })
+  },
+  know: {
+    label:"Knowledge", needs:["cat","area","note"], endpoint:"/knowledge",
+    desc:"Knowledge entry, no action",
+    build:(it,v)=>({
+      category: v.cat || "context",
+      area: v.area || "EHS",
+      subject: plain(it.t),
+      detail: v.note || plain((it.b||[]).join(" ")) || plain(it.t),
+      source_label: plain(it.src),
+      tags: SRC_TAG,
+      confidence: "medium"
+    })
+  },
+  intel: {
+    label:"Person", needs:["who","itype","note"], endpoint:"/intel",
+    desc:"People-intel entry",
+    build:(it,v)=>({
+      person_name: v.who || "",
+      intel_type: v.itype || "working_style",
+      content: v.note || plain((it.b||[]).join(" ")) || plain(it.t),
+      source_label: plain(it.src),
+      confidence: "medium"
+    })
+  },
+  move: {
+    label:"Ldr move", needs:["note"], endpoint:"/moves",
+    desc:"Leadership-move entry",
+    build:(it,v)=>({
+      date: SOURCE.today,
+      description: v.note || plain(it.t),
+      category: "proactive",
+      context: plain((it.b||[]).join(" ")).slice(0,600) || null,
+      source_label: plain(it.src)
+    })
+  },
+  deleg: {
+    label:"Delegate", needs:["who","due","note"], endpoint:"/tasks",
+    desc:"Task owned by someone else",
+    build:(it,v)=>({
+      title: plain(it.t),
+      description: v.note || plain(it.b && it.b[0]) || null,
+      due_date: v.due || null,
+      priority: "Medium",
+      status: "todo",
+      ownership: "fyi",
+      waiting_on: v.who || null,
+      source: SOURCE.kind,
+      source_label: plain(it.src),
+      tags: SRC_TAG + ",delegated",
+      ai_extracted: 1
+    })
+  },
+  fyi: {
+    label:"FYI", needs:["note"], endpoint:"/tasks",
+    desc:"Undated fyi row in D1",
+    build:(it,v)=>({
+      title: "[FYI] " + plain(it.t),
+      description: v.note || plain(it.b && it.b[0]) || null,
+      status: "undated",
+      ownership: "fyi",
+      priority: "Low",
+      source: SOURCE.kind,
+      source_label: plain(it.src),
+      tags: SRC_TAG + ",fyi-context",
+      ai_extracted: 1
+    })
+  },
+  skip: { label:"Dismiss", needs:[], endpoint:null, desc:"Dismissed, nothing written" }
+};
+const PRIMARY = ["task","reply","cal","know","skip"];
+const SECONDARY = ["replied","deleg","intel","move","fyi"];
+
+/* ── token + connection ─────────────────────────────────── */
+let TOKEN = "";
+let apiState = "unknown";     // unknown | ok | badtoken | unreachable
+
+function headers(){
+  return { "Content-Type":"application/json", "Authorization":"Bearer " + TOKEN };
+}
+
+function setConn(kind, label, msg, opts){
+  opts = opts || {};
+  const c = document.getElementById("conn");
+  c.className = "conn" + (kind==="ok"?" ok":kind==="bad"?" bad":kind==="warn"?" warn":"");
+  document.getElementById("connLbl").textContent = label;
+  document.getElementById("connMsg").textContent = msg;
+  document.getElementById("tokenIn").style.display   = opts.askToken ? "" : "none";
+  document.getElementById("tokenSave").style.display = opts.askToken ? "" : "none";
+  document.getElementById("tokenClear").style.display= opts.canClear ? "" : "none";
+  document.getElementById("connRetry").style.display = opts.canRetry ? "" : "none";
+
+  const pill = document.getElementById("apiPill");
+  pill.textContent = kind==="ok" ? "API OK" : kind==="bad" ? "API DOWN" : "API ?";
+  pill.className = "pill" + (kind==="ok"?" ok":kind==="bad"?" bad":" warn");
+  apiState = kind==="ok" ? "ok" : apiState;
+  updateProgress();
+}
+
+async function checkApi(){
+  TOKEN = localStorage.getItem("eaton_token") || "";
+  if(!TOKEN){
+    apiState = "badtoken";
+    setConn("warn","Token needed",
+      "This page writes to the same Worker API as the dashboard. Paste your token — it is stored only in this browser, never in the file.",
+      {askToken:true});
+    return;
+  }
+  setConn("", "Connecting", "Checking the Worker API…", {});
+  let r;
+  try{
+    r = await fetch(API + "/tasks?limit=1", { headers: headers() });
+  }catch(e){
+    apiState = "unreachable";
+    setConn("bad","API unreachable",
+      "Could not reach " + API + " — " + e.message + ". Check your connection, then retry. Nothing has been written.",
+      {canRetry:true, canClear:true});
+    return;
+  }
+  if(r.status === 401 || r.status === 403){
+    apiState = "badtoken";
+    localStorage.removeItem("eaton_token"); TOKEN = "";
+    setConn("bad","Token rejected",
+      "The Worker returned " + r.status + ". The token is wrong or was rotated — paste the current one.",
+      {askToken:true});
+    return;
+  }
+  if(!r.ok){
+    apiState = "unreachable";
+    let t=""; try{ t = (await r.text()).slice(0,300); }catch(e){}
+    setConn("bad","API error",
+      "GET /tasks returned HTTP " + r.status + ". " + t, {canRetry:true, canClear:true});
+    return;
+  }
+  let ver = "";
+  try{
+    const h = await fetch(API + "/health", { headers: headers() });
+    if(h.ok){ const j = await h.json(); ver = j.version || j.status || ""; }
+  }catch(e){ /* version is cosmetic — a failure here does not block writes */ }
+  apiState = "ok";
+  setConn("ok","Connected",
+    "Worker reachable and the token works" + (ver?" · "+ver:"") + ". Writes go to D1 eaton-ehs-dashboard.",
+    {canClear:true});
+}
+
+document.getElementById("tokenSave").addEventListener("click", ()=>{
+  const v = document.getElementById("tokenIn").value.trim();
+  if(!v){ document.getElementById("connMsg").textContent = "Paste a token first — the field is empty."; return; }
+  localStorage.setItem("eaton_token", v);
+  document.getElementById("tokenIn").value = "";
+  checkApi();
+});
+document.getElementById("tokenIn").addEventListener("keydown", e=>{
+  if(e.key==="Enter") document.getElementById("tokenSave").click();
+});
+document.getElementById("tokenClear").addEventListener("click", ()=>{
+  localStorage.removeItem("eaton_token"); TOKEN=""; checkApi();
+});
+document.getElementById("connRetry").addEventListener("click", checkApi);
+
+/* ── local state ────────────────────────────────────────── */
+const STORE_KEY = "review-queue::" + SOURCE.window;
+let state = {};
+function loadState(){ try{ state = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; }catch(e){ state={}; } }
+function saveState(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){} }
+
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function plain(h){ const d=document.createElement("div"); d.innerHTML=(h==null?"":h); return (d.textContent||"").replace(/\s+/g," ").trim(); }
+const itemKey = i => "i"+i;
+
+/* ── render ─────────────────────────────────────────────── */
+function buildFeed(){
+  let html = "";
+  SECTIONS.forEach(sec => {
+    const rows = ITEMS.map((it,i)=>({it,i})).filter(o=>o.it.s===sec.id);
+    if(!rows.length) return;
+    html += `<section id="sec-${sec.id}">
+      <div class="shead"><h2>${esc(sec.h)}</h2><span class="ct">${esc(sec.ct)}</span></div>
+      ${sec.note?`<p class="snote">${sec.note}</p>`:""}`;
+    rows.forEach(({it,i}) => { html += renderItem(it,i); });
+    html += `</section>`;
+  });
+  document.getElementById("feed").innerHTML = html;
+}
+
+function renderItem(it, i){
+  const k = itemKey(i);
+  const body = (it.b||[]).map(p=>`<p>${p}</p>`).join("");
+  const tags = (it.tags||[]).map(([t,c])=>`<span class="tag ${c||""}">${esc(t)}</span>`).join("");
+  const sug = it.sug && it.sug.d;
+  const mk = key => {
+    const d = DISPOSITIONS[key], isSug = sug===key;
+    return `<button class="d${isSug?" sug":""}" data-k="${key}" data-i="${i}" aria-pressed="false"
+             title="${esc(d.desc)}">${esc(d.label)}${isSug?" ✓":""}</button>`;
+  };
+  return `<div class="item" id="item-${k}" data-i="${i}" data-u="${it.u||"calm"}">
+    <div class="ihead">
+      <div class="when"><b>${it.w||""}</b>${it.wn?`<span${/overdue|now|since/i.test(it.wn)?' class="od"':""}>${esc(it.wn)}</span>`:""}</div>
+      <div class="ibody">
+        <h3>${it.t}</h3>
+        ${body}
+        <p class="src">${esc(it.src||"")}</p>
+        ${tags?`<div class="tags">${tags}</div>`:""}
+        <div class="disp">
+          ${PRIMARY.map(mk).join("")}
+          <button class="d more" data-more="${i}" aria-expanded="false" title="More dispositions">⋯</button>
+          <span class="extra" data-extra="${i}" style="display:none; gap:5px; flex-wrap:wrap;">${SECONDARY.map(mk).join("")}</span>
+        </div>
+        <div class="det" id="det-${k}"></div>
+        <div class="verd" id="verd-${k}"></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function fieldsFor(key, it, v){
+  const need = DISPOSITIONS[key].needs, s = it.sug||{}; v = v||{};
+  const val = f => v[f] !== undefined ? v[f] : (s[f] !== undefined ? s[f] : "");
+  let h = "";
+  if(need.includes("who"))
+    h += `<div class="f grow"><label>Person</label><input type="text" data-f="who" value="${esc(val("who"))}" placeholder="Full name"></div>`;
+  if(need.includes("itype")){
+    const cur = val("itype") || "working_style";
+    h += `<div class="f"><label>Intel type</label><select data-f="itype">` +
+         ENUMS.intel_type.map(o=>`<option${o===cur?" selected":""}>${o}</option>`).join("") + `</select></div>`;
+  }
+  if(need.includes("due"))
+    h += `<div class="f"><label>Due</label><input type="date" data-f="due" value="${esc(val("due"))}"></div>`;
+  if(need.includes("date"))
+    h += `<div class="f"><label>Date</label><input type="date" data-f="date" value="${esc(val("date"))}"></div>`;
+  if(need.includes("time"))
+    h += `<div class="f"><label>Time</label><input type="time" data-f="time" value="${esc(val("time"))}"></div>`;
+  if(need.includes("pri")){
+    const p = val("pri") || "Medium";
+    h += `<div class="f"><label>Priority</label><select data-f="pri">` +
+         ENUMS.priority.map(o=>`<option${o===p?" selected":""}>${o}</option>`).join("") + `</select></div>`;
+  }
+  if(need.includes("cat"))
+    h += `<div class="f"><label>Category</label><input type="text" data-f="cat" value="${esc(val("cat")||"context")}"></div>`;
+  if(need.includes("area"))
+    h += `<div class="f"><label>Area</label><input type="text" data-f="area" value="${esc(val("area")||"EHS")}"></div>`;
+  if(need.includes("note"))
+    h += `<div class="f grow"><label>Detail</label><input type="text" data-f="note" value="${esc(val("note"))}" placeholder="Goes into the D1 row"></div>`;
+  return h;
+}
+
+function wireDetail(i){
+  const k = itemKey(i);
+  const det = document.getElementById("det-"+k);
+  det.querySelectorAll("[data-f]").forEach(inp=>{
+    inp.addEventListener("input", ()=>{
+      state[k][inp.dataset.f] = inp.value;
+      delete state[k].err;
+      saveState(); renderVerdict(i); updateProgress();
+    });
+  });
+}
+
+function applyDisposition(i, key, toggle){
+  const k = itemKey(i), it = ITEMS[i];
+  const el = document.getElementById("item-"+k);
+  const prev = state[k];
+
+  if(prev && prev.sent){ return; }               // already written — locked
+  if(toggle && prev && prev.d===key){ delete state[k]; }
+  else { state[k] = Object.assign({}, (prev && prev.d===key) ? prev : (it.sug||{}), {d:key}); }
+  saveState();
+
+  const cur = state[k];
+  el.classList.toggle("settled", !!cur);
+  el.classList.remove("failed");
+  if(cur) el.setAttribute("data-d", cur.d); else el.removeAttribute("data-d");
+  el.querySelectorAll(".d[data-k]").forEach(b=> b.setAttribute("aria-pressed", String(!!cur && b.dataset.k===cur.d)));
+
+  const det = document.getElementById("det-"+k);
+  if(cur && DISPOSITIONS[cur.d].needs.length){
+    det.innerHTML = fieldsFor(cur.d, it, cur); det.classList.add("on"); wireDetail(i);
+  } else { det.innerHTML=""; det.classList.remove("on"); }
+
+  renderVerdict(i); updateProgress();
+}
+
+/* Client-side mirror of the Worker's required-field checks, so a row that would
+   400 is flagged here with a pointed message instead of failing mid-submit. */
+function validate(i){
+  const k = itemKey(i), v = state[k]; if(!v) return null;
+  const d = DISPOSITIONS[v.d]; if(!d.endpoint) return null;
+  const p = d.build(ITEMS[i], v);
+  if(d.endpoint==="/tasks"){
+    if(!p.title) return "title is empty";
+    if(p.priority && !ENUMS.priority.includes(p.priority)) return "priority must be one of " + ENUMS.priority.join(", ");
+    if(p.status && !ENUMS.status.includes(p.status)) return "status must be one of " + ENUMS.status.join(", ");
+    if(p.ownership && !ENUMS.ownership.includes(p.ownership)) return "ownership must be mine or fyi";
+    if(v.d==="reply" && !p.waiting_on) return "reply needs a person — fill in Person";
+  }
+  if(d.endpoint==="/knowledge"){
+    if(!p.category) return "knowledge needs a category";
+    if(!p.area) return "knowledge needs an area";
+    if(!p.subject) return "knowledge needs a subject";
+    if(!p.detail) return "knowledge needs detail — add a Detail note";
+  }
+  if(d.endpoint==="/intel"){
+    if(!p.person_name) return "intel needs a person name";
+    if(!ENUMS.intel_type.includes(p.intel_type)) return "intel_type must be one of " + ENUMS.intel_type.join(", ");
+    if(!p.content) return "intel needs content — add a Detail note";
+  }
+  if(d.endpoint==="/moves" && !p.description) return "leadership move needs a description";
+  return null;
+}
+
+function renderVerdict(i){
+  const k = itemKey(i), cur = state[k];
+  const verd = document.getElementById("verd-"+k);
+  const el = document.getElementById("item-"+k);
+  if(!cur){ verd.classList.remove("on"); verd.innerHTML=""; el.classList.remove("written","failed"); return; }
+  const d = DISPOSITIONS[cur.d];
+
+  if(cur.sent){
+    el.classList.add("written"); el.classList.remove("failed");
+    verd.innerHTML = `<span class="ok">✓ WRITTEN</span><span>${esc(d.endpoint)} · row #${esc(cur.sent.id)}</span>`;
+    verd.classList.add("on"); return;
+  }
+  if(cur.err){
+    el.classList.add("failed"); el.classList.remove("written");
+    verd.innerHTML = `<span class="fail">✕ FAILED</span><span>${esc(cur.err)}</span>`;
+    verd.classList.add("on"); return;
+  }
+  el.classList.remove("written","failed");
+
+  const bad = validate(i);
+  const bits = [];
+  if(cur.who) bits.push(cur.who);
+  if(cur.due) bits.push("due "+cur.due);
+  if(cur.date) bits.push(cur.date + (cur.time?" "+cur.time:""));
+  if(cur.pri) bits.push(cur.pri);
+  verd.innerHTML = `<span class="vk">→ ${esc(d.label)}</span><span>${esc(d.desc)}</span>` +
+    (bits.length?`<span>· ${esc(bits.join(" · "))}</span>`:"") +
+    (bad?`<span class="warnf">⚠ ${esc(bad)}</span>`:"");
+  verd.classList.add("on");
+}
+
+document.getElementById("feed").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  if(b.dataset.more !== undefined){
+    const span = document.querySelector(`[data-extra="${b.dataset.more}"]`);
+    const on = span.style.display === "none";
+    span.style.display = on ? "inline-flex" : "none";
+    b.setAttribute("aria-expanded", String(on)); return;
+  }
+  if(b.dataset.k) applyDisposition(Number(b.dataset.i), b.dataset.k, true);
+});
+
+/* ── progress ───────────────────────────────────────────── */
+function counts(){
+  const c = {};
+  Object.values(state).forEach(v=>{ c[v.d]=(c[v.d]||0)+1; });
+  return c;
+}
+function pendingWrites(){
+  return Object.entries(state)
+    .map(([k,v])=>({ i:Number(k.slice(1)), k, v }))
+    .filter(o => DISPOSITIONS[o.v.d].endpoint && !o.v.sent);
+}
+function updateProgress(){
+  const total = ITEMS.length, c = counts(), done = Object.keys(state).length;
+  const colorFor = {task:"--accent",reply:"--critical",cal:"--info",know:"--know",intel:"--know",
+                    replied:"--good",move:"--good",deleg:"--ink",fyi:"--mute",skip:"--mute"};
+  document.getElementById("bar").innerHTML =
+    Object.keys(DISPOSITIONS).filter(k=>c[k])
+      .map(k=>`<i style="width:${(c[k]/total*100).toFixed(2)}%; background:var(${colorFor[k]})"></i>`).join("")
+    + `<i style="width:${((total-done)/total*100).toFixed(2)}%; background:var(--surface-3)"></i>`;
+
+  const parts = Object.keys(DISPOSITIONS).filter(k=>c[k]).map(k=>`${c[k]} ${DISPOSITIONS[k].label.toLowerCase()}`);
+  document.getElementById("ctText").innerHTML =
+    `<b>${done}</b> of <b>${total}</b> decided` + (parts.length?` — ${esc(parts.join(", "))}`:"");
+
+  const pend = pendingWrites();
+  const written = Object.values(state).filter(v=>v.sent).length;
+  const invalid = pend.filter(o=>validate(o.i)).length;
+  document.getElementById("dockStat").innerHTML = done
+    ? `<b>${pend.length}</b> to write · <b>${written}</b> written` +
+      (invalid?` · <b style="color:var(--critical)">${invalid} need a fix</b>`:"") +
+      ` · <b>${total-done}</b> undecided`
+    : "Nothing decided yet";
+
+  const btn = document.getElementById("btnSubmit");
+  btn.disabled = !(pend.length && apiState==="ok");
+  btn.textContent = apiState!=="ok" ? "API not ready" : `Submit ${pend.length} to D1`;
+}
+
+/* ── submit ─────────────────────────────────────────────── */
+let lastRun = [];
+
+function openSheet(){
+  const pend = pendingWrites();
+  const invalid = pend.filter(o=>validate(o.i));
+  const byEp = {};
+  pend.forEach(o=>{ const ep = DISPOSITIONS[o.v.d].endpoint; (byEp[ep]=byEp[ep]||[]).push(o); });
+
+  document.getElementById("sheetLede").textContent = invalid.length
+    ? `${pend.length} records queued. ${invalid.length} are missing a required field and will be skipped — fix them and submit again.`
+    : `${pend.length} records will be written to D1 through the Worker API. Nothing is marked done unless the API returns a row id.`;
+
+  let html = "";
+  Object.entries(byEp).forEach(([ep, rows])=>{
+    html += `<div class="plan"><h4><span>POST ${esc(ep)}</span><span>${rows.length}</span></h4>`;
+    rows.forEach(o=>{
+      const bad = validate(o.i);
+      html += `<div class="prow" id="prow-${o.k}">
+        <span class="stat ${bad?"fail":"q"}">${bad?"blocked":"queued"}</span>
+        <span class="txt">${esc(plain(ITEMS[o.i].t))}${bad?`<em>${esc(bad)}</em>`:""}</span>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  const skipped = Object.values(state).filter(v=>!DISPOSITIONS[v.d].endpoint).length;
+  if(skipped) html += `<div class="plan"><h4><span>Not written (dismissed / replied)</span><span>${skipped}</span></h4>
+     <div class="prow"><span class="stat q">local</span><span class="txt">Recorded as decisions only — no API call.</span></div></div>`;
+
+  document.getElementById("planBody").innerHTML = html;
+  document.getElementById("banner").className = "banner";
+  const go = document.getElementById("btnGo");
+  go.style.display = "";
+  const writable = pend.length - invalid.length;
+  go.disabled = writable === 0;
+  go.textContent = writable === 0
+    ? (pend.length ? "Nothing valid to write — fix the blocked rows" : "Nothing queued")
+    : `Write ${writable} record${writable===1?"":"s"}`;
+  document.getElementById("btnRetry").style.display = "none";
+  document.getElementById("btnReport").style.display = "none";
+  document.getElementById("modal").classList.add("on");
+}
+
+function setRow(k, cls, text, errText){
+  const row = document.getElementById("prow-"+k); if(!row) return;
+  row.querySelector(".stat").className = "stat " + cls;
+  row.querySelector(".stat").textContent = text;
+  if(errText){
+    let em = row.querySelector("em");
+    if(!em){ em = document.createElement("em"); row.querySelector(".txt").appendChild(em); }
+    em.textContent = errText;
+  }
+}
+
+function banner(cls, html){
+  const b = document.getElementById("banner");
+  b.className = "banner on " + cls; b.innerHTML = html;
+}
+
+/* One POST. Returns {ok, id} or {ok:false, err}. A 2xx with no row id is treated
+   as a FAILURE, not a success — that is the exact anti-pattern that hid the
+   /otter/extract and digest outages. */
+async function postOne(endpoint, payload){
+  let res;
+  try{
+    res = await fetch(API + endpoint, { method:"POST", headers: headers(), body: JSON.stringify(payload) });
+  }catch(e){
+    return { ok:false, err:"NETWORK — " + e.message + " (nothing was written)" };
+  }
+  let text = "";
+  try{ text = await res.text(); }catch(e){}
+  if(!res.ok){
+    let msg = text.slice(0,240);
+    try{ const j = JSON.parse(text); msg = j.error || j.message || msg; }catch(e){}
+    if(res.status===401 || res.status===403){
+      apiState = "badtoken"; localStorage.removeItem("eaton_token"); TOKEN="";
+    }
+    return { ok:false, err:"HTTP " + res.status + " — " + (msg || res.statusText) };
+  }
+  let body;
+  try{ body = JSON.parse(text); }
+  catch(e){ return { ok:false, err:"HTTP " + res.status + " but the response was not JSON — " + text.slice(0,160) }; }
+  const id = body && (body.id != null ? body.id : (body.result && body.result.id));
+  if(id == null){
+    return { ok:false, err:"HTTP " + res.status + " but no row id came back — treating as NOT written. Body: " + text.slice(0,160) };
+  }
+  return { ok:true, id };
+}
+
+async function runWrites(onlyFailed){
+  const go = document.getElementById("btnGo");
+  const retry = document.getElementById("btnRetry");
+  go.disabled = true; retry.disabled = true;
+
+  let rows = pendingWrites().filter(o=>!validate(o.i));
+  if(onlyFailed) rows = rows.filter(o=>o.v.err);
+  if(!rows.length){ banner("bad","<b>Nothing to write.</b> Every queued row is either blocked or already written."); go.disabled=false; retry.disabled=false; return; }
+
+  banner("busy", `<b>Writing…</b> 0 of ${rows.length}`);
+  let ok=0, fail=0, stoppedAt=-1;
+  lastRun = [];
+
+  for(let n=0; n<rows.length; n++){
+    const o = rows[n];
+    const d = DISPOSITIONS[o.v.d];
+    setRow(o.k, "go", "writing…");
+    const payload = d.build(ITEMS[o.i], o.v);
+    const r = await postOne(d.endpoint, payload);
+    if(r.ok){
+      ok++;
+      state[o.k].sent = { id:r.id, endpoint:d.endpoint, at:new Date().toISOString() };
+      delete state[o.k].err;
+      setRow(o.k, "ok", "row #"+r.id);
+    }else{
+      fail++;
+      state[o.k].err = r.err;
+      setRow(o.k, "fail", "failed", r.err);
+      lastRun.push({ title: plain(ITEMS[o.i].t), endpoint:d.endpoint, err:r.err, payload });
+    }
+    saveState(); renderVerdict(o.i);
+    banner("busy", `<b>Writing…</b> ${n+1} of ${rows.length} — ${ok} ok, ${fail} failed`);
+    if(apiState==="badtoken"){ stoppedAt = n+1; break; }
+  }
+
+  /* Rows the loop never reached because it aborted. These are NOT failures and NOT
+     successes — they were never attempted, and saying so is the whole point. */
+  const unattempted = stoppedAt >= 0 ? rows.length - stoppedAt : 0;
+  if(unattempted){
+    rows.slice(stoppedAt).forEach(o => setRow(o.k, "q", "not attempted"));
+  }
+
+  updateProgress();
+  if(stoppedAt >= 0){
+    banner("bad", `<b>Run stopped after ${stoppedAt} of ${rows.length}.</b> The token was rejected mid-run, so <b>${unattempted} rows were never attempted</b> — they are still queued and unwritten. ${ok} written, ${fail} failed so far. Re-enter the token at the top of the page, then submit again.`);
+    retry.style.display = ""; retry.textContent = `Retry failed (${fail})`;
+    document.getElementById("btnReport").style.display = fail ? "" : "none";
+    go.style.display = "";
+  }else if(fail===0){
+    banner("ok", `<b>All ${ok} records written to D1.</b> They are live on the dashboard — refresh it to see them.`);
+    retry.style.display = "none"; document.getElementById("btnReport").style.display="none";
+    go.style.display = "none";
+  }else{
+    banner("bad", `<b>${ok} written, ${fail} failed.</b> Failed rows are marked in red both here and in the list behind this sheet — they were NOT written and can be retried. Nothing was double-written; successful rows are locked.`);
+    retry.style.display = ""; retry.textContent = `Retry failed (${fail})`;
+    document.getElementById("btnReport").style.display = "";
+    go.style.display = "none";
+  }
+  go.disabled = false; retry.disabled = false;
+  if(apiState==="badtoken") checkApi();
+}
+
+/* ── .ics export for calendar dispositions ──────────────── */
+function icsEscape(s){ return String(s||"").replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\n/g,"\\n"); }
+function stamp(d){ return d.replace(/-/g,""); }
+function buildIcs(){
+  const rows = Object.entries(state).map(([k,v])=>({i:Number(k.slice(1)),v})).filter(o=>o.v.d==="cal" && o.v.date);
+  if(!rows.length) return null;
+  const L = ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Eaton EHS CMD//Review Queue//EN","CALSCALE:GREGORIAN"];
+  rows.forEach((o,n)=>{
+    const it = ITEMS[o.i], v = o.v;
+    L.push("BEGIN:VEVENT");
+    L.push("UID:review-" + SOURCE.window.replace(/[^0-9]/g,"") + "-" + n + "@eaton-ehs");
+    L.push("DTSTAMP:" + new Date().toISOString().replace(/[-:]/g,"").split(".")[0] + "Z");
+    if(v.time){
+      const s = stamp(v.date) + "T" + v.time.replace(":","") + "00";
+      const [hh,mm] = v.time.split(":").map(Number);
+      const end = String((hh+1)%24).padStart(2,"0") + String(mm).padStart(2,"0") + "00";
+      L.push("DTSTART:" + s);
+      L.push("DTEND:" + stamp(v.date) + "T" + end);
+    }else{
+      L.push("DTSTART;VALUE=DATE:" + stamp(v.date));
+    }
+    L.push("SUMMARY:" + icsEscape(plain(it.t)));
+    L.push("DESCRIPTION:" + icsEscape((v.note||"") + "\n\nSource: " + plain(it.src)));
+    L.push("END:VEVENT");
+  });
+  L.push("END:VCALENDAR");
+  return L.join("\r\n");
+}
+document.getElementById("btnIcs").addEventListener("click", ()=>{
+  const ics = buildIcs();
+  if(!ics){ alert("No calendar items yet — mark something as Calendar with a date first."); return; }
+  const blob = new Blob([ics], {type:"text/calendar;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "ehs-review-" + SOURCE.window.split("..")[1] + ".ics";
+  a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+});
+
+/* ── wiring ─────────────────────────────────────────────── */
+document.getElementById("acceptAll").addEventListener("click", ()=>{
+  ITEMS.forEach((it,i)=>{
+    if(!it.sug || !it.sug.d) return;
+    const k = itemKey(i);
+    if(state[k]) return;
+    applyDisposition(i, it.sug.d, false);
+  });
+  updateProgress();
+});
+document.getElementById("resetAll").addEventListener("click", ()=>{
+  const written = Object.values(state).filter(v=>v.sent).length;
+  const msg = written
+    ? `Clear all decisions?\n\n${written} rows are already written to D1 — clearing here does NOT delete them from the database. You would have to remove those rows from the dashboard yourself.`
+    : "Clear all decisions on this page?";
+  if(!confirm(msg)) return;
+  state = {}; saveState(); buildFeed(); restore(); updateProgress();
+});
+
+document.getElementById("btnSubmit").addEventListener("click", openSheet);
+document.getElementById("btnGo").addEventListener("click", ()=>runWrites(false));
+document.getElementById("btnRetry").addEventListener("click", ()=>runWrites(true));
+document.getElementById("btnReport").addEventListener("click", async ()=>{
+  const txt = "REVIEW QUEUE — FAILED WRITES\n" + SOURCE.label + "\n\n" +
+    lastRun.map(r=>`• ${r.title}\n  POST ${r.endpoint}\n  ${r.err}\n  payload: ${JSON.stringify(r.payload)}`).join("\n\n");
+  const btn = document.getElementById("btnReport");
+  try{ await navigator.clipboard.writeText(txt); btn.textContent = "Copied"; }
+  catch(e){ btn.textContent = "Copy failed — see console"; console.log(txt); }
+  setTimeout(()=>{ btn.textContent = "Copy failure report"; }, 2200);
+});
+
+const modal = document.getElementById("modal");
+document.getElementById("btnClose").addEventListener("click", ()=> modal.classList.remove("on"));
+modal.addEventListener("click", e=>{ if(e.target===modal) modal.classList.remove("on"); });
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") modal.classList.remove("on"); });
+
+function restore(){
+  Object.keys(state).forEach(k=>{
+    const i = Number(k.slice(1));
+    if(!ITEMS[i]){ delete state[k]; return; }
+    const cur = state[k];
+    const el = document.getElementById("item-"+k); if(!el) return;
+    el.classList.add("settled"); el.setAttribute("data-d", cur.d);
+    el.querySelectorAll(".d[data-k]").forEach(b=>b.setAttribute("aria-pressed", String(b.dataset.k===cur.d)));
+    const det = document.getElementById("det-"+k);
+    if(DISPOSITIONS[cur.d].needs.length){
+      det.innerHTML = fieldsFor(cur.d, ITEMS[i], cur); det.classList.add("on"); wireDetail(i);
+    }
+    renderVerdict(i);
+  });
+}
+
+window.addEventListener("beforeunload", e=>{
+  if(pendingWrites().length){ e.preventDefault(); e.returnValue = ""; }
+});
+
+loadState();
+buildFeed();
+restore();
+updateProgress();
+checkApi();
+</script>
+</body>
+</html>

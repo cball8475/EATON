@@ -25,6 +25,21 @@ mkdir -p /tmp/eaton-dash && cp index.html /tmp/eaton-dash/index.html
 npx -y netlify-cli deploy --prod --dir /tmp/eaton-dash --site 5667ffaa-f8bb-4208-9cba-766fd357f2b8
 # first run opens a browser to authorize, same as wrangler login
 ```
+
+> **Update (2026-07-31):** the site now serves **two** pages — `index.html` (dashboard) and
+> `review.html` (`tools/review-queue.html`, the triage queue). A deploy publishes a whole
+> directory and drops anything absent from it, so **stage both files every time**; a deploy
+> dir holding only one of them silently deletes the other from the site.
+>
+> `netlify-cli` needs an interactive browser login that a Claude Code session can't do
+> (`netlify status` → "Not logged in"). The headless path: call the Netlify MCP
+> `netlify-deploy-services-updater` / `deploy-site` with the site id — it returns an
+> `npx @netlify/mcp@latest --site-id … --proxy-path …` command carrying short-lived auth.
+> That command uploads **the current working directory**, so run it from the staged deploy
+> dir, never from a repo root. Full procedure in `tools/review-queue.md`.
+>
+> Verify by outcome — the deploy prints "Deploy is ready!" either way:
+> `curl -s https://eaton-ehs-cmd.netlify.app/review.html | cmp - tools/review-queue.html`
 After a token rotation, in the dashboard browser: DevTools console → `localStorage.removeItem('eaton_token')` → reload → enter the new token.
 
 ---
