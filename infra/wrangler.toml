@@ -33,7 +33,7 @@ index_name = "eaton-memory"
 #
 # Day-of-week is SPELLED OUT, never numeric. Cloudflare cron is Quartz-style:
 # 1 = Sunday, 7 = Saturday — NOT the POSIX 0 = Sunday this file originally
-# assumed. The numeric originals ("0 14 * * 5" etc.) fired a day early for
+# assumed. The numeric originals (day fields 5 and 1) fired a day early for
 # weeks — Thursday digests, Sunday backups — and the drift was invisible
 # because every run "succeeded" (kb/lessons.md 2026-08-02).
 #
