@@ -4,9 +4,20 @@
 // Secrets: API_TOKEN, ANTHROPIC_API_KEY, RESEND_API_KEY (weekly digest),
 //          GITHUB_BACKUP_TOKEN (weekly D1 backup push — PAT with repo scope)
 // Vars: GIT_SHA (set on deploy so /health reports the live commit — see infra/deploy-notes.md)
-// Crons: "0 14 * * 5" (Friday 10am ET — weekly digest), "0 12 * * 1" (Monday — D1 backup to GitHub),
-//        "0 21 * * 5" (Friday 5pm ET — auto-draft the weekly reflection)
+// Crons: "0 14 * * FRI" (Friday 10am ET — weekly digest), "0 12 * * MON" (Monday — D1 backup to GitHub),
+//        "0 21 * * FRI" (Friday 5pm ET — auto-draft the weekly reflection)
+//        Day-of-week is spelled out — Cloudflare cron is Quartz-style (1 = Sunday), and the
+//        numeric POSIX-assuming originals fired a day early for weeks. See v3.10.1.
 // Changelog:
+//   v3.10.1 (2026-08-02) — every cron fired a day early: Cloudflare's cron day-of-week is
+//     Quartz-style (1 = Sunday … 7 = Saturday), not POSIX (0 = Sunday), so "* * 5" meant
+//     Thursday and "* * 1" meant Sunday. Verified by outcome: five digest emails all
+//     Thursday 14:00 UTC, both auto-backup commits Sunday 12:00 UTC, reflection draft row
+//     Thursday 21:00 UTC. Nothing ever failed — the jobs ran exactly as written, on days
+//     nobody intended, which also produced the false "07-27 backup miss" (it ran 07-26, a
+//     Sunday). Fix: day-of-week is now spelled out (FRI/MON) in wrangler.toml and in the
+//     scheduled() switch cases, which must match controller.cron's literal string. The
+//     digest and reflection draft previously truncated every week at Thursday morning.
 //   v3.10.0 (2026-07-30) — weekly reflections are automated and can no longer fail quietly.
 //     The reflection was written only by Step 7b of the MANUAL /weekly command, so a skipped
 //     Friday left no row and nothing noticed: 1 row total, last week_of 2026-07-01, ~8 weeks
@@ -55,7 +66,7 @@
 //   v3.6.0 (2026-06-03) — weekly digest moved from SendGrid to Resend
 //   v3.5.0 (2026-05-27) — added /scoreboard GET+PATCH for EHS safety pulse metrics
 
-const VERSION = "3.10.0";
+const VERSION = "3.10.1";
 
 // ── WEEKLY REFLECTION HELPERS ──
 // A reflection is keyed by week_of = the Monday of its week. Everything that
@@ -743,7 +754,10 @@ async function sendDigestEmail(env, subject, body) {
 
 export default {
   // ── CRON HANDLER ──
-  // "0 14 * * 5" → Friday weekly digest email. "0 12 * * 1" → Monday D1 backup.
+  // "0 14 * * FRI" → Friday weekly digest email. "0 12 * * MON" → Monday D1 backup.
+  // Case strings must equal wrangler.toml's cron strings EXACTLY — controller.cron
+  // is the literal registered expression, so editing one side without the other
+  // sends every firing to the default case (which throws, by design).
   // A cron that reports success while its work silently failed is how the weekly
   // digest went missing for a month (RESEND_API_KEY 401 — kb/lessons.md 2026-07-25).
   // Both routines return {success:false} rather than throwing, and ctx.waitUntil()
@@ -759,7 +773,7 @@ export default {
     // would have silently sent a second digest every week. An unrecognised cron
     // now throws instead of quietly doing the wrong job.
     switch (controller.cron) {
-      case "0 12 * * 1":
+      case "0 12 * * MON":
         ctx.waitUntil((async () => {
           const r = await runBackup(env, db);
           if (!r?.success) {
@@ -770,7 +784,7 @@ export default {
         })());
         return;
 
-      case "0 14 * * 5":
+      case "0 14 * * FRI":
         ctx.waitUntil((async () => {
           const data = await buildWeeklyDigest(db);
           const health = await computeReflectionHealth(db);
@@ -789,7 +803,7 @@ export default {
       // Friday 21:00 UTC (5pm ET) — after the 14:00 digest and after Charlie
       // would have run /weekly himself. If he did, this is a no-op; if he
       // didn't, the week still gets a row instead of vanishing.
-      case "0 21 * * 5":
+      case "0 21 * * FRI":
         ctx.waitUntil((async () => {
           const r = await runReflectionDraft(db);
           if (!r?.success) {
