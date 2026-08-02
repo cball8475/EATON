@@ -9,6 +9,14 @@
 //        Day-of-week is spelled out — Cloudflare cron is Quartz-style (1 = Sunday), and the
 //        numeric POSIX-assuming originals fired a day early for weeks. See v3.10.1.
 // Changelog:
+//   v3.11.0 (2026-08-02) — backup and digest get the daily watch layer reflections already
+//     had. Every successful backup (cron or POST /backup/run) and digest send (cron or
+//     POST /digest/send) writes a heartbeat to app_config (LAST_BACKUP_OK / LAST_DIGEST_OK);
+//     computeOpsHealth() turns heartbeats older than 8 days (weekly cadence + 1 day slack)
+//     into `ops.alert` on /stats, riding /brief → /morning and /pulse → /status daily.
+//     Closes the residual half of the cron-watching gap: before this, a dead
+//     GITHUB_BACKUP_TOKEN failed every Monday backup with no signal outside Cloudflare's
+//     invocation log until the next ~monthly /audit.
 //   v3.10.1 (2026-08-02) — every cron fired a day early: Cloudflare's cron day-of-week is
 //     Quartz-style (1 = Sunday … 7 = Saturday), not POSIX (0 = Sunday), so "* * 5" meant
 //     Thursday and "* * 1" meant Sunday. Verified by outcome: five digest emails all
@@ -66,7 +74,7 @@
 //   v3.6.0 (2026-06-03) — weekly digest moved from SendGrid to Resend
 //   v3.5.0 (2026-05-27) — added /scoreboard GET+PATCH for EHS safety pulse metrics
 
-const VERSION = "3.10.1";
+const VERSION = "3.11.0";
 
 // ── WEEKLY REFLECTION HELPERS ──
 // A reflection is keyed by week_of = the Monday of its week. Everything that
@@ -308,6 +316,54 @@ function withScoreboardAge(row) {
   return out;
 }
 
+// ── OPS HEARTBEATS ──
+// The reflections taught the pattern: a cron's exit status is invisible, so
+// every cron-delivered artifact records its last success where the daily brief
+// can see it. runBackup and the digest senders call recordHeartbeat on success;
+// computeOpsHealth reads the heartbeats into /stats, which rides /brief into
+// /morning and /pulse into /status — the same daily path reflections.alert
+// takes. Without this, a dead GITHUB_BACKUP_TOKEN fails every Monday backup
+// silently until someone happens to run /audit.
+async function recordHeartbeat(db, key) {
+  try {
+    await db.prepare(
+      "INSERT INTO app_config (key, value, note) VALUES (?, datetime('now'), 'ops heartbeat — written on success, read by computeOpsHealth') " +
+      "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')"
+    ).bind(key).run();
+  } catch (e) {
+    // A failed heartbeat write must never fail the job that just succeeded.
+    console.error(`heartbeat write failed for ${key}: ${e.message}`);
+  }
+}
+
+// Weekly cadence plus one day of slack: anything older means the cron has been
+// failing (or its credential died) since before the last expected run.
+const OPS_HEARTBEATS = [
+  { key: "LAST_BACKUP_OK", name: "backup", max_age_days: 8, hint: "the MON 12:00 UTC cron / GITHUB_BACKUP_TOKEN" },
+  { key: "LAST_DIGEST_OK", name: "digest", max_age_days: 8, hint: "the FRI 14:00 UTC cron / RESEND_API_KEY" },
+];
+
+async function computeOpsHealth(db) {
+  const out = {};
+  const problems = [];
+  for (const hb of OPS_HEARTBEATS) {
+    const row = await db.prepare(
+      "SELECT value, CAST(julianday('now') - julianday(value) AS INTEGER) AS age_days FROM app_config WHERE key = ?"
+    ).bind(hb.key).first();
+    if (!row) {
+      out[hb.name] = { last_ok: null, age_days: null };
+      problems.push(`${hb.name} has no recorded success yet — check ${hb.hint}`);
+    } else {
+      out[hb.name] = { last_ok: row.value, age_days: row.age_days };
+      if (row.age_days > hb.max_age_days) {
+        problems.push(`${hb.name} last succeeded ${row.age_days} days ago (${row.value}) — check ${hb.hint}`);
+      }
+    }
+  }
+  out.alert = problems.length ? problems.join("; ") : null;
+  return out;
+}
+
 // Full stats object. Extracted so /stats and /brief share one source of truth.
 async function computeStats(db) {
   const totalTasks = await db.prepare("SELECT COUNT(*) as c FROM tasks").first();
@@ -325,6 +381,7 @@ async function computeStats(db) {
   const movesThisWeek = await db.prepare("SELECT COUNT(*) as c FROM leadership_moves WHERE date >= date('now', '-7 days')").first();
   const movesThisMonth = await db.prepare("SELECT COUNT(*) as c FROM leadership_moves WHERE date >= date('now', '-30 days')").first();
   const reflectionHealth = await computeReflectionHealth(db);
+  const opsHealth = await computeOpsHealth(db);
   const totalKnowledge = await db.prepare("SELECT COUNT(*) as c FROM knowledge").first();
   const knowledgeByCategory = await db.prepare("SELECT category, COUNT(*) as c FROM knowledge GROUP BY category").all();
   const knowledgeThisWeek = await db.prepare("SELECT COUNT(*) as c FROM knowledge WHERE created_at >= date('now', '-7 days')").first();
@@ -346,6 +403,9 @@ async function computeStats(db) {
     // /brief, /status via /pulse) must render `alert` when it is non-null —
     // that is the whole point of automating the reflection: the gap is loud.
     reflections: reflectionHealth,
+    // Backup + digest freshness from the ops heartbeats. Same rendering rule
+    // as reflections.alert: consumers must show `ops.alert` when non-null.
+    ops: opsHealth,
     knowledge: {
       total: totalKnowledge.c,
       by_category: knowledgeByCategory.results,
@@ -531,6 +591,7 @@ async function runBackup(env, db) {
     rows: data.summary,
     error: res.ok ? null : (detail?.message || null)
   };
+  if (result.success) await recordHeartbeat(db, "LAST_BACKUP_OK");
   console.log("Backup result:", JSON.stringify({ ...result, rows: undefined }));
   return result;
 }
@@ -796,6 +857,7 @@ export default {
             console.error("Digest cron FAILED:", JSON.stringify(r));
             throw new Error(`digest send failed (status ${r?.status ?? "n/a"}): ${r?.error || r?.reason || "unknown"}`);
           }
+          await recordHeartbeat(db, "LAST_DIGEST_OK");
           console.log(`Weekly digest sent for week ending ${weekEnd} (resend id ${r.id})`);
         })());
         return;
@@ -874,6 +936,7 @@ export default {
         const body = formatDigestEmail(data, await computeReflectionHealth(db));
         const subject = `EHS Weekly Digest — ${data.week_ending} | ${data.completed.length} closed, ${data.total_open} open${data.overdue.length > 0 ? `, ${data.overdue.length} overdue` : ""}`;
         const result = await sendDigestEmail(env, subject, body);
+        if (result.success) await recordHeartbeat(db, "LAST_DIGEST_OK");
         // A failed send must fail at the HTTP layer too — callers checking the
         // status code and not .sent.success would report a send that never
         // happened (the manual-path twin of the v3.9.3 cron bug).

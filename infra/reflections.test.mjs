@@ -212,5 +212,57 @@ console.log("\n9. every registered cron has an explicit handler");
   ok(!/if \(controller\.cron === "0 12 \* \* 1"\)/.test(src), "the old if/return fall-through is gone");
 }
 
+// ── 10. ops heartbeats — backup/digest freshness (v3.11.0) ──
+// The same layer reflections got in v3.10.0, applied to the other two crons:
+// success writes a heartbeat, computeOpsHealth turns a stale heartbeat into an
+// alert that rides /stats into the daily brief. Without it, a dead
+// GITHUB_BACKUP_TOKEN fails every Monday backup with no visible signal.
+console.log("\n10. ops heartbeats: backup/digest freshness alerts");
+{
+  const opsSrc = [
+    src.match(/^const OPS_HEARTBEATS = \[[\s\S]*?\n\];/m)?.[0] ?? (() => { throw new Error("OPS_HEARTBEATS not found in worker-api.mjs"); })(),
+    extract("recordHeartbeat", "async function"),
+    extract("computeOpsHealth", "async function"),
+  ].join("\n\n");
+  const { recordHeartbeat, computeOpsHealth } = await import(
+    `data:text/javascript,${encodeURIComponent(`${opsSrc}\nexport { recordHeartbeat, computeOpsHealth };`)}`
+  );
+
+  const s = new DatabaseSync(":memory:");
+  s.exec(`CREATE TABLE app_config (key TEXT PRIMARY KEY, value TEXT NOT NULL, note TEXT, updated_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+  const db = d1(s);
+
+  let h = await computeOpsHealth(db);
+  ok(h.alert !== null, "alert is non-null before any success is recorded");
+  ok(/backup/.test(h.alert) && /digest/.test(h.alert), "alert names both artifacts");
+
+  await recordHeartbeat(db, "LAST_BACKUP_OK");
+  await recordHeartbeat(db, "LAST_DIGEST_OK");
+  h = await computeOpsHealth(db);
+  eq(h.alert, null, "alert is null when both heartbeats are fresh");
+  eq(h.backup.age_days, 0, "fresh backup heartbeat reads as age 0");
+
+  s.prepare("UPDATE app_config SET value = datetime('now', '-8 days') WHERE key = 'LAST_BACKUP_OK'").run();
+  h = await computeOpsHealth(db);
+  eq(h.alert, null, "exactly 8 days is still inside the weekly cadence + slack");
+
+  s.prepare("UPDATE app_config SET value = datetime('now', '-10 days') WHERE key = 'LAST_BACKUP_OK'").run();
+  h = await computeOpsHealth(db);
+  ok(h.alert !== null && /backup/.test(h.alert), "a 10-day-old backup heartbeat raises the alert");
+  ok(!/digest/.test(h.alert), "the fresh digest is not dragged into the alert");
+  ok(/GITHUB_BACKUP_TOKEN/.test(h.alert), "alert points at the likely cause");
+
+  await recordHeartbeat(db, "LAST_BACKUP_OK");
+  h = await computeOpsHealth(db);
+  eq(h.alert, null, "a new success clears the alert");
+  eq(s.prepare("SELECT COUNT(*) AS c FROM app_config WHERE key = 'LAST_BACKUP_OK'").get().c, 1, "upsert keeps one row per key");
+
+  // The write points must exist in the worker, or the heartbeats never update
+  // and this whole layer alerts forever (or worse, never).
+  ok(/if \(result\.success\) await recordHeartbeat\(db, "LAST_BACKUP_OK"\)/.test(src), "runBackup records the heartbeat on success");
+  ok((src.match(/recordHeartbeat\(db, "LAST_DIGEST_OK"\)/g) || []).length >= 2, "both digest paths (cron + manual send) record the heartbeat");
+  ok(/ops: opsHealth/.test(src), "computeStats carries ops health so it reaches /brief and /pulse");
+}
+
 console.log(`\n${fail === 0 ? "✓" : "✗"} ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

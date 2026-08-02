@@ -36,10 +36,11 @@ TOP BLOCKERS:
   → [task] waiting on [who/what]
 
 ⚠ [reflections.alert — one line, omit entirely when null]
+⚠ [ops.alert — one line, omit entirely when null]
 ```
 
 ## Rules
 - 10-second read. No analysis, no coaching.
 - Clean board = "Clean board" + just the counts.
 - Don't offer to do anything after. Just show the numbers.
-- The one exception to "no analysis": `/stats` returns `reflections.alert`. If it is non-null, print it as the last line. It means the weekly-reflection record has a hole — a missed cron, not a judgment call — and a status pulse that hides a broken automation isn't a status pulse.
+- The one exception to "no analysis": `/stats` returns `reflections.alert` and `ops.alert` (backup/digest freshness, v3.11.0+). If either is non-null, print it as a final line. Each means an automation is broken — a missed cron or a dead credential, not a judgment call — and a status pulse that hides a broken automation isn't a status pulse.

@@ -43,6 +43,8 @@ Counts (knowledge, intel, people, leadership_moves) come from `/stats` — do NO
 - `reflections.awaiting_review` non-empty → one line noting a draft is waiting on `/weekly`.
 - Both clear → omit the line entirely.
 
+`/stats` also returns `ops.alert` (v3.11.0+) — backup/digest freshness from the success heartbeats. **If non-null, render it as `⚠ OPS: [ops.alert]`.** A stale backup heartbeat means the Monday backup cron has been failing (usually a dead `GITHUB_BACKUP_TOKEN`); a stale digest heartbeat, the Friday digest (`RESEND_API_KEY`). Same rule as reflections: a broken automation, not a nudge. Omit when null.
+
 ## Step 3: Force-read lessons
 Read `kb/lessons.md`. Surface entries added since the last session under `⚠ RECENT LESSONS`. Skip if none.
 
@@ -65,6 +67,7 @@ MORNING BRIEF — [Day, Date]
 
 🔍 DRIFT: [findings or omit]
 ⚠ REFLECTIONS: [reflections.alert — omit only when null]
+⚠ OPS: [ops.alert — omit only when null]
 ⚠ RECENT LESSONS: [or omit]
 ↕ DASHBOARD CHANGES SINCE LAST SESSION: [completed/changed tasks]
 📣 UNPROCESSED MEETINGS: [count or omit]
