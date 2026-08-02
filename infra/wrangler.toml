@@ -27,11 +27,18 @@ binding = "VECTORIZE"
 index_name = "eaton-memory"
 
 [triggers]
-# Friday 14:00 UTC — weekly digest email. Monday 12:00 UTC — D1 backup to GitHub.
-# Friday 21:00 UTC (5pm ET) — auto-draft the weekly reflection if /weekly didn't
+# FRI 14:00 UTC — weekly digest email. MON 12:00 UTC — D1 backup to GitHub.
+# FRI 21:00 UTC (5pm ET) — auto-draft the weekly reflection if /weekly didn't
 # already write one. Runs after the digest and after Charlie's own Friday review.
 #
+# Day-of-week is SPELLED OUT, never numeric. Cloudflare cron is Quartz-style:
+# 1 = Sunday, 7 = Saturday — NOT the POSIX 0 = Sunday this file originally
+# assumed. The numeric originals ("0 14 * * 5" etc.) fired a day early for
+# weeks — Thursday digests, Sunday backups — and the drift was invisible
+# because every run "succeeded" (kb/lessons.md 2026-08-02).
+#
 # Every cron listed here MUST have an explicit `case` in the worker's scheduled()
-# switch. An unhandled trigger throws by design rather than falling through to
-# another job's handler — see the v3.10.0 changelog note.
-crons = ["0 14 * * 5", "0 12 * * 1", "0 21 * * 5"]
+# switch, matching this string EXACTLY (controller.cron is the literal expression
+# as registered). An unhandled trigger throws by design rather than falling
+# through to another job's handler — see the v3.10.0 changelog note.
+crons = ["0 14 * * FRI", "0 12 * * MON", "0 21 * * FRI"]

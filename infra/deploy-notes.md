@@ -95,8 +95,10 @@ Use only if wrangler auth is broken. **PUT-based deploys WIPE secrets** — re-s
 - `GITHUB_BACKUP_TOKEN` — v3.8.0+; PAT with `repo` scope on `cball8475/EATON`, used by the Monday backup cron to push gzipped D1 exports. Set via `npx wrangler secret put GITHUB_BACKUP_TOKEN`. Until it's set, backups log a skip — nothing breaks.
 
 ### Cron
-- `0 14 * * 5` — Friday 14:00 UTC (10:00 AM ET during EDT) — builds and emails weekly digest
-- `0 12 * * 1` — Monday 12:00 UTC (v3.8.0+) — gzipped full D1 export pushed to `infra/backups/auto/d1-export-YYYY-MM-DD.json.gz` on GitHub main (~150-250KB/week). Manual trigger: `eaton /backup/run -X POST`.
+Day-of-week must be spelled out (`MON`, `FRI`) — Cloudflare cron is Quartz-style (1 = Sunday, 7 = Saturday), not POSIX. The numeric originals fired a day early for weeks (v3.10.1, kb/lessons.md 2026-08-02). The `scheduled()` switch cases must match the wrangler.toml strings exactly — `controller.cron` is the literal registered expression.
+- `0 14 * * FRI` — Friday 14:00 UTC (10:00 AM ET during EDT) — builds and emails weekly digest
+- `0 12 * * MON` — Monday 12:00 UTC (v3.8.0+) — gzipped full D1 export pushed to `infra/backups/auto/d1-export-YYYY-MM-DD.json.gz` on GitHub main (~150-250KB/week). Manual trigger: `eaton /backup/run -X POST`.
+- `0 21 * * FRI` — Friday 21:00 UTC (v3.10.0+) — auto-drafts the weekly reflection if `/weekly` didn't already write one.
 
 ### Restore (tested 2026-07-22 against the first production backup)
 ```bash
