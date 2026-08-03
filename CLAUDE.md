@@ -79,7 +79,7 @@ PATCH    /people/:id      — update person
 GET      /people/:id/intel — person-specific intel
 GET/POST /intel           — people intel (?person_name=, ?intel_type=, ?since=, ?fields=, ?limit=)
 GET/POST /knowledge       — tribal knowledge (?category=, ?area=, ?q=, ?since=, ?fields=, ?limit=)
-GET      /stats           — D1 ROW COUNTS ONLY (tasks/knowledge/intel/moves). No safety metrics — use /scoreboard
+GET      /stats           — D1 row counts + reflections health + ops freshness (backup/digest heartbeats). No safety metrics — use /scoreboard
 GET      /export          — full JSON dump
 GET      /health          — version + git_sha
 GET      /moves           — leadership moves (?since=YYYY-MM-DD, ?category=)
@@ -249,6 +249,8 @@ If a number appears in this file it should be a *target* or *stable fact*, never
 **Recall rule (v3.8.0+):** when Charlie asks "what do we know about X", "have we dealt with X before", or "who told us about X", hit `GET /search?q=X` first — it's FTS across knowledge, intel, and tasks, ranked with snippets. The per-endpoint `?q=` LIKE filters only match literal substrings; /search matches terms anywhere in any order. LIKE filters are for structured drift scans; /search is for memory.
 
 **Backup (v3.8.0+):** a Monday 12:00 UTC cron pushes a gzipped full D1 export to `infra/backups/auto/` on GitHub main (needs the `GITHUB_BACKUP_TOKEN` Worker secret). Manual: `POST /backup/run`. `/audit` verifies the cadence. Restore: `infra/restore.sh <backup> <fresh-db> --create` — schema, data, FTS rebuild, count verification (tested 2026-07-22; refuses prod without `--force-prod`). The "07-27 backup miss" was a false alarm: **Cloudflare cron day-of-week is Quartz-style (1 = Sunday, 7 = Saturday), not POSIX**, so the numeric schedules fired a day early for weeks — backups landed Sundays (07-26 was that week's run), digests went out Thursdays. Fixed 2026-08-02 (v3.10.1): every cron now spells the day out (`MON`/`FRI`), and the `scheduled()` switch cases must match those literal strings. Never write a numeric day-of-week in `wrangler.toml`.
+
+**Ops heartbeats (v3.11.0+):** the backup and digest have the same daily watch layer as reflections. Every successful backup and digest send writes a heartbeat to `app_config` (`LAST_BACKUP_OK` / `LAST_DIGEST_OK`); `/stats` computes `ops.alert` when one is older than 8 days (weekly cadence + a day of slack), and it rides `/brief` into `/morning` and `/pulse` into `/status`. Render `ops.alert` whenever it is non-null, exactly like `reflections.alert`. A stale backup heartbeat usually means the `GITHUB_BACKUP_TOKEN` PAT died; a stale digest heartbeat, `RESEND_API_KEY`.
 
 **Verify crons by outcome, not exit status.** The digest is proven by an email in the inbox, the backup by a dated file in `infra/backups/auto/`, the reflection by a row in `weekly_reflections`. `ctx.waitUntil(p)` inside a try/catch catches nothing, and any helper that returns `{success:false}` instead of throwing is a silent failure by construction — that pattern has now bitten `/otter/extract`, the digest, and the backup.
 
