@@ -1,157 +1,142 @@
 <meta charset="utf-8">
-<title>Press Brake Safety — Hands Out of the Pinch</title>
+<title>Lessons Learned — Press Brake Hand Placement</title>
 <style>
-  @page { size: letter portrait; margin: 0.4in; }
+  @page { size: letter portrait; margin: 0.5in; }
   * { box-sizing: border-box; }
   body {
-    margin: 0; padding: 24px;
+    margin: 0 auto; padding: 28px;
     font-family: -apple-system, "Segoe UI", Arial, sans-serif;
-    color: #111; background: #fff;
-    max-width: 8.5in; margin: 0 auto;
-    line-height: 1.35;
+    color: #000; background: #fff;
+    max-width: 8.5in; font-size: 11.5pt; line-height: 1.4;
   }
-  .rule-band { background: #111; color: #fff; padding: 14px 18px; }
-  .kicker { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; color: #E8620C; }
-  h1 { font-size: 34px; line-height: 1.05; margin: 4px 0 0; font-weight: 800; text-transform: uppercase; }
-  .sub { font-size: 15px; font-weight: 600; margin-top: 6px; color: #f2f2f2; }
 
-  section { margin-top: 18px; }
+  .doc-title { font-size: 17pt; font-weight: 700; margin: 0; }
+  .doc-sub { font-size: 11pt; margin: 2px 0 12px; }
+
+  table.hdr { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 18px; }
+  table.hdr td { border: 1px solid #000; padding: 4px 7px; }
+  table.hdr td.lbl { background: #EEE; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; width: 1.15in; }
+
   h2 {
-    font-size: 13px; letter-spacing: .1em; text-transform: uppercase;
-    font-weight: 800; margin: 0 0 6px; padding-bottom: 4px;
-    border-bottom: 2px solid #111;
+    font-size: 11pt; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+    margin: 20px 0 7px; padding-bottom: 3px; border-bottom: 1.5px solid #000;
   }
-  p { margin: 0 0 8px; font-size: 14.5px; }
-  strong { font-weight: 800; }
+  p { margin: 0 0 9px; }
+  ol, ul { margin: 0 0 9px; padding-left: 22px; }
+  li { margin-bottom: 6px; }
 
-  .callout {
-    border: 3px solid #E8620C; padding: 12px 14px; margin-top: 10px;
-    background: #FFF6F0;
-  }
-  .callout .lead { font-size: 16px; font-weight: 800; margin-bottom: 4px; }
+  table.events { width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 10px; }
+  table.events th { background: #EEE; border: 1px solid #000; padding: 4px 7px; text-align: left; font-size: 9pt; text-transform: uppercase; letter-spacing: .04em; }
+  table.events td { border: 1px solid #000; padding: 5px 7px; vertical-align: top; }
+  table.events td.d { white-space: nowrap; width: 0.95in; }
+  table.events td.m { white-space: nowrap; width: 0.7in; }
 
-  .events { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 4px; }
-  .events th { text-align: left; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; border-bottom: 1.5px solid #111; padding: 4px 8px 4px 0; }
-  .events td { padding: 5px 8px 5px 0; border-bottom: 1px solid #ddd; vertical-align: top; }
-
-  .rule-box { border: 3px solid #111; padding: 14px 16px; margin-top: 10px; }
-  .rule-box .big { font-size: 21px; font-weight: 800; line-height: 1.15; text-transform: uppercase; }
-  .rule-box .small { font-size: 14px; margin-top: 8px; }
+  .keypoint { border: 2px solid #000; padding: 9px 12px; margin: 10px 0; }
+  .keypoint p:last-child { margin-bottom: 0; }
 
   .photo {
-    border: 3px dashed #999; background: #FAFAFA;
-    height: 2.9in; margin-top: 10px;
-    display: flex; align-items: center; justify-content: center;
-    text-align: center; color: #888;
+    border: 2px dashed #777; background: #F7F7F7;
+    height: 2.6in; margin: 10px 0 4px;
+    display: flex; align-items: center; justify-content: center; text-align: center;
   }
-  .photo span { font-size: 14px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-  .photo span em { display: block; font-style: normal; font-weight: 500; font-size: 12px; letter-spacing: 0; margin-top: 6px; color: #aaa; }
+  .photo span { font-size: 10pt; color: #666; }
+  .photo span em { display: block; font-style: normal; font-size: 9pt; color: #888; margin-top: 5px; }
+  .caption { font-size: 9pt; color: #444; margin: 0 0 9px; }
 
-  .tools { display: flex; gap: 14px; margin-top: 10px; }
-  .tool { flex: 1; border-top: 4px solid #111; padding-top: 8px; }
-  .tool .num { font-size: 26px; font-weight: 800; line-height: 1; }
-  .tool .name { font-size: 15px; font-weight: 800; text-transform: uppercase; margin-top: 2px; }
-  .tool .note { font-size: 12.5px; margin-top: 4px; color: #333; }
-  .tool .warn { font-size: 12.5px; margin-top: 4px; font-weight: 800; color: #B3300A; }
-
-  .stop { border: 3px solid #111; background: #111; color: #fff; padding: 12px 16px; margin-top: 14px; }
-  .stop .big { font-size: 18px; font-weight: 800; text-transform: uppercase; }
-  .stop p { color: #f2f2f2; margin: 6px 0 0; font-size: 14px; }
-
-  footer { margin-top: 18px; padding-top: 10px; border-top: 2px solid #111; font-size: 12.5px; display: flex; justify-content: space-between; gap: 16px; }
-  footer div { flex: 1; }
-  .ack { margin-top: 14px; border: 1.5px solid #111; padding: 10px 12px; font-size: 12px; }
-  .ack .lbl { font-weight: 800; text-transform: uppercase; letter-spacing: .08em; font-size: 11px; }
-  .ack .lines { margin-top: 10px; }
-  .ack .lines div { border-bottom: 1px solid #333; height: 22px; margin-bottom: 10px; }
+  .footer-note { margin-top: 22px; padding-top: 8px; border-top: 1.5px solid #000; font-size: 9.5pt; }
 
   @media print {
     body { padding: 0; }
-    .noprint { display: none; }
-    .photo { height: 2.4in; }
-    /* sign-off sheet prints as its own page so the poster stays one clean page */
-    .ack { page-break-before: always; margin-top: 0; }
-    .ack .lines div { height: 30px; margin-bottom: 14px; }
+    .photo { height: 2.2in; }
+    h2 { page-break-after: avoid; }
+    table.events { page-break-inside: avoid; }
   }
 </style>
 
-<div class="rule-band">
-  <div class="kicker">Press Brake Safety — All Shifts, Steel &amp; Copper</div>
-  <h1>Hands out of the pinch.<br>Every part. Every time.</h1>
-  <div class="sub">Use a magnet, an orange push bar, or tongs — or no hands at all.</div>
+<p class="doc-title">Lessons Learned — Press Brake Hand Placement</p>
+<p class="doc-sub">Hands out of the pinch between the ram and the part</p>
+
+<table class="hdr">
+  <tr>
+    <td class="lbl">LL Number</td><td>&nbsp;</td>
+    <td class="lbl">Date Issued</td><td>&nbsp;</td>
+  </tr>
+  <tr>
+    <td class="lbl">Site</td><td>Sumter, SC</td>
+    <td class="lbl">Prepared By</td><td>Charlie Ball, EHS</td>
+  </tr>
+  <tr>
+    <td class="lbl">Area</td><td>Steel Fab and Copper Fab</td>
+    <td class="lbl">Equipment</td><td>All press brakes</td>
+  </tr>
+  <tr>
+    <td class="lbl">Audience</td><td colspan="3">All press brake operators, setup personnel, team leads, and supervisors — all shifts</td>
+  </tr>
+</table>
+
+<h2>What Happened</h2>
+<p>Three operators have been injured on Sumter press brakes since 2023. Three different machines, three different shifts, three different parts.</p>
+
+<table class="events">
+  <tr><th>Date</th><th>Machine</th><th>Event</th></tr>
+  <tr>
+    <td class="d">8/29/2023</td><td class="m">PB14</td>
+    <td>Operator finished a bend and reached in to remove the part. His foot contacted the pedal, the upper die traveled down, and his hand was pinched between the part and the front of the die. Right ring finger fracture. Recordable, restricted work.</td>
+  </tr>
+  <tr>
+    <td class="d">2/6/2025</td><td class="m">PB27</td>
+    <td>New operator was checking a bend angle during setup using a scrap piece of metal. The scrap bent and pulled his hand into the die. Partial amputation, right middle finger. Recordable, restricted work.</td>
+  </tr>
+  <tr>
+    <td class="d">6/26/2026</td><td class="m">PB19</td>
+    <td>Operator's thumb was caught in the same pinch. Treated on site, first aid.</td>
+  </tr>
+</table>
+
+<h2>Why It Happened</h2>
+<p>In all three events the hand was pinched between the ram and the part, at the front face of the die. That is not the mouth of the press.</p>
+
+<div class="keypoint">
+  <p>The laser scanner guards the mouth, and it only covers the middle of the gap. It does not cover the front of the die. The front of the die is where your hand is when you hold a part, position a part, or check an angle.</p>
+  <p>All three injuries happened in the area the guarding does not reach.</p>
 </div>
 
-<section>
-  <h2>Why you're getting this</h2>
-  <p>Three people have been hurt on our press brakes on three different machines. Same mechanism every time. Different operators, different shifts, different parts — the machine wasn't the problem.</p>
-  <table class="events">
-    <tr><th>When</th><th>Machine</th><th>What happened</th></tr>
-    <tr><td>8/29/2023</td><td>PB14</td><td>Reached in to remove a finished part, stepped on the pedal. Ring finger fractured.</td></tr>
-    <tr><td>2/6/2025</td><td>PB27</td><td>Checking a bend angle during setup with a scrap piece. The scrap bent and pulled the hand in. <strong>Partial amputation, middle finger.</strong></td></tr>
-    <tr><td>6/26/2026</td><td>PB19</td><td>Thumb caught in the same pinch. Treated on site. Two inches over and it's the same story again.</td></tr>
-  </table>
-</section>
+<p>The machines were operating as designed in all three events. The common factor was a hand on the part. Hand tools were installed at the brakes as a corrective action after the 2023 and 2025 events, and they were available at PB19 on 6/26/2026.</p>
 
-<section>
-  <h2>Where it actually gets you</h2>
-  <div class="callout">
-    <div class="lead">It is not the mouth of the press. It's the front of the die.</div>
-    <p style="margin:0">Every one of these injuries happened at the pinch between the <strong>ram and the part</strong>, at the <strong>front face of the die</strong> — not inside the mouth. The laser scanner guards the mouth, and it only covers the middle of the gap. <strong>The place your hand goes is the place the laser doesn't watch.</strong> Don't let a guarded machine talk you into a free hand.</p>
-  </div>
-</section>
+<h2>Lessons Learned</h2>
+<ol>
+  <li><strong>The guarded area and the injury area are not the same place.</strong> A working laser scanner does not make it safe to hold a part by hand.</li>
+  <li><strong>Setup and part removal are when this happens.</strong> Two of the three injuries occurred outside a normal production cycle, when the operator was checking or retrieving instead of running.</li>
+  <li><strong>A scrap piece in your hand is still your hand.</strong> Holding scrap to check an angle puts your fingers in the same pinch point.</li>
+  <li><strong>Tools at the machine are not the same as tools in use.</strong> The hand tools were present at PB19 and the injury still occurred.</li>
+</ol>
 
-<section>
-  <h2>The rule</h2>
-  <div class="rule-box">
-    <div class="big">No hands within 3 inches of the die — front, side, or mouth.</div>
-    <div class="small">Not to hold a part. Not to nudge it square. Not to check an angle. <strong>Setup counts.</strong> A scrap piece in your hand is still your hand. "Just this once" is how all three of these started.</div>
-  </div>
-</section>
+<h2>Required Practice</h2>
+<p>No hands within 3 inches of the die. This applies during setup, during the bend, and when removing the part.</p>
+<p>There are four ways to run a part without a hand in the pinch point:</p>
+<ol>
+  <li><strong>Magnet.</strong> Set the part on the magnet mounted on the back of the bottom die instead of holding it. Magnets do not hold copper, so this option is not available in the copper shop.</li>
+  <li><strong>Orange push bar.</strong> Feed, seat, and position the part with the bar.</li>
+  <li><strong>Tongs.</strong> Grip and hold the part. Best option for W-channel and U-channel parts.</li>
+  <li><strong>Bring the ram down onto the part first.</strong> Lower the ram until it holds the part against the die, take your hands off, then complete the bend. The press holds the part instead of your hand.</li>
+</ol>
+<p>If a part cannot be run using one of these four methods, stop. Back the ram off, re-fixture the part, or get your supervisor before you run it.</p>
 
-<section>
-  <h2>Your three tools</h2>
-
-  <div class="photo">
-    <span>Photo of the three approved tools
-      <em>Magnet · orange push bar · tongs — left to right, matching 1 · 2 · 3 below</em>
-    </span>
-  </div>
-
-  <div class="tools">
-    <div class="tool">
-      <div class="num">1</div>
-      <div class="name">Magnet</div>
-      <div class="note">Mounted on the backside of the bottom die. Set the small part on the magnet instead of holding it.</div>
-      <div class="warn">Will not hold copper. In the copper shop, use a push bar or tongs.</div>
-    </div>
-    <div class="tool">
-      <div class="num">2</div>
-      <div class="name">Orange Push Bar</div>
-      <div class="note">One on every brake. Feed, seat, or nudge the part into position with the bar — not your fingers.</div>
-    </div>
-    <div class="tool">
-      <div class="num">3</div>
-      <div class="name">Tongs</div>
-      <div class="note">Grip, hold, and retrieve. Best option for W-channel and U-channel parts.</div>
-    </div>
-  </div>
-</section>
-
-<div class="stop">
-  <div class="big">If the job won't run with one of these three — stop.</div>
-  <p>Back the ram off, re-fixture it, or get your supervisor. Do not freehand it and do not work around it to save a cycle. The part is replaceable. Your hand is not.</p>
+<h2>Approved Hand Tools</h2>
+<div class="photo">
+  <span>Photo of the three approved hand tools
+    <em>Magnet, orange push bar, tongs</em>
+  </span>
 </div>
+<p class="caption">These tools are at every press brake. If any are missing from your machine, tell your supervisor before you run.</p>
 
-<footer>
-  <div><strong>Questions, or a part that doesn't fit these three tools?</strong><br>See your supervisor or Charlie Ball, EHS, before you run it.</div>
-  <div style="text-align:right"><strong>Eaton Sumter — EHS</strong><br>Post at every press brake. Cover in shift start-up.</div>
-</footer>
+<h2>Supervisor Discussion Points</h2>
+<ul>
+  <li>Which parts in your area are still being held by hand? Name them.</li>
+  <li>Are the magnet, push bar, and tongs present at every brake on your shift right now?</li>
+  <li>What does your crew do today when a part is too small or the wrong shape for all four methods?</li>
+</ul>
 
-<div class="ack">
-  <div class="lbl">Supervisor use — talk-down acknowledgment</div>
-  <div style="margin-top:6px">Machine / area: ________________________  Shift: ________  Date: ____________  Led by: ________________________</div>
-  <div class="lines">
-    <div></div><div></div><div></div><div></div><div></div><div></div>
-  </div>
-  <div style="color:#555">Print name and sign. Return to EHS.</div>
+<div class="footer-note">
+  Review this lessons learned with your crew and return the signed roster to EHS. Questions on a part that does not fit the four methods: contact Charlie Ball, EHS, before it runs.
 </div>
