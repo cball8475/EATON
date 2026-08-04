@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STOP / DO NOT ENTER — ANSI Z535.2 Signage</title>
+<style>
+/* ============================================================
+   STOP / DO NOT ENTER — accident prevention signs
+   Format: ANSI Z535.2-2011, accepted by OSHA 29 CFR 1910.145(f)(1)(ii)
+   Sheet size: 7 in x 10 in (standard OSHA sign size, prints on letter)
+
+   TO RESIZE: change --w / --h on .sign and the @page size. Everything
+   inside is in em, where 1em = 1 inch at the 7in width, so the sign
+   rescales as one piece.
+     7 x 10   --w: 7in;  --h: 10in;   @page size: 8.5in 11in
+     10 x 14  --w: 10in; --h: 14.29in; @page size: 11in 17in
+     14 x 20  --w: 14in; --h: 20in;   @page size: 18in 24in
+   ============================================================ */
+
+:root{
+  --safety-red:  #C8102E;  /* ANSI Z535.1 safety red  ~ PMS 186C */
+  --safety-blue: #005EB8;  /* ANSI Z535.1 safety blue ~ PMS 300C */
+  --ink: #000;
+  --paper: #fff;
+  --font: Arial, "Liberation Sans", Helvetica, "Helvetica Neue", sans-serif;
+}
+
+*{ box-sizing: border-box; }
+
+html,body{
+  margin:0; padding:0;
+  font-family: var(--font);
+  background:#4a4d52;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ---------- screen-only spec panel ---------- */
+.spec{
+  max-width: 46rem; margin: 2rem auto 0; padding: 1.5rem 1.75rem;
+  background:#fff; color:#111; border-radius:6px; line-height:1.55;
+  font-size: .92rem;
+}
+.spec h1{ font-size:1.15rem; margin:0 0 .35rem; letter-spacing:.01em; }
+.spec h2{ font-size:.78rem; margin:1.35rem 0 .4rem; text-transform:uppercase;
+          letter-spacing:.09em; color:#5a5f66; }
+.spec p{ margin:.4rem 0; }
+.spec ul{ margin:.4rem 0; padding-left:1.2rem; }
+.spec li{ margin:.28rem 0; }
+.spec code{ background:#eceef1; padding:.1em .35em; border-radius:3px; font-size:.9em; }
+.spec .rule{ border:0; border-top:1px solid #dcdfe3; margin:1.35rem 0; }
+.spec .sw{ display:inline-block; width:.85em; height:.85em; border-radius:2px;
+           vertical-align:-.08em; margin-right:.25em; border:1px solid rgba(0,0,0,.25); }
+
+/* ---------- page + sign shell ---------- */
+.sheet{ display:flex; justify-content:center; padding: 2rem 1rem; }
+
+.sign{
+  --w: 7in;
+  --h: 10in;
+  width: var(--w);
+  height: var(--h);
+  font-size: calc(var(--w) / 7);   /* 1em == 1in at 7in wide */
+  background: var(--paper);
+  border: .18em solid var(--ink);
+  display:flex; flex-direction:column;
+  overflow:hidden;
+  box-shadow: 0 .35rem 1.5rem rgba(0,0,0,.45);
+}
+
+/* ---------- signal word panel ---------- */
+.signal{
+  flex: 0 0 1.5em;
+  display:flex; align-items:center; justify-content:center; gap:.22em;
+  border-bottom: .07em solid var(--ink);
+  padding: 0 .16em;
+}
+.signal.danger{ background: var(--safety-red); }
+.signal.notice{ background: var(--safety-blue); }
+.signal .word{
+  color:#fff; font-weight:700; line-height:1;
+  font-size:1.12em;            /* "DANGER" = 4.333em wide in Arial Bold */
+  letter-spacing:0;
+  transform: translateY(-.02em);
+}
+.signal.notice .word{ font-size:1.18em; }  /* "NOTICE" is narrower, no symbol */
+.alert-symbol{ width:.95em; height:.84em; flex:0 0 auto; display:block; }
+
+/* ---------- message panel ---------- */
+.message{
+  flex:1 1 auto; min-height:0;
+  display:flex; flex-direction:column; align-items:center;
+  padding: .28em .34em .18em;
+}
+.pictogram{ display:block; flex:0 0 auto; }
+.pictogram.oct{ width:3em; height:3em; }
+.pictogram.ped{ width:2.8em; height:2.8em; }
+
+.headline{
+  font-weight:700; text-align:center; line-height:1.02;
+  color:var(--ink); white-space:nowrap;
+}
+.headline.xl  { font-size:.75em; letter-spacing:.01em; }  /* "DO NOT ENTER" = 7.556em */
+.headline.stop{ font-size:.95em; letter-spacing:.03em; color:var(--safety-red); }
+.headline.sub { font-size:.34em; letter-spacing:.05em; }
+
+.divider{ width:100%; height:.05em; background:var(--ink); margin:.24em 0 .12em; }
+
+/* hazard / consequence / avoidance — ANSI word message */
+.wordmsg{ width:100%; font-size:.19em; line-height:1.28; color:var(--ink); }
+.wordmsg ul{ margin:0; padding:0; }
+.wordmsg li{
+  list-style:none; text-align:center; font-weight:700;
+  margin:.62em 0; letter-spacing:.005em;
+}
+.fill{
+  display:inline-block; min-width:5em;
+  border-bottom:.09em solid var(--ink);
+  margin:0 .25em;
+}
+
+.spacer{ flex:1 1 auto; min-height:.1em; }
+
+/* ---------- footer identification strip ---------- */
+.footer{
+  flex:0 0 auto; width:100%;
+  border-top:.05em solid var(--ink);
+  display:flex; gap:.5em;
+  padding-top:1.2em;                 /* 1.2 x .155in = ~.19in of clear space */
+  font-size:.155em; font-weight:700;
+  letter-spacing:.07em; text-transform:uppercase; color:var(--ink);
+}
+.footer .cell{ flex:1 1 0; display:flex; align-items:flex-end; gap:.45em; }
+.footer .cell b{ font-weight:700; white-space:nowrap; }
+.footer .cell i{
+  flex:1 1 auto; display:block; height:.9em;
+  border-bottom:.1em solid var(--ink);
+}
+
+/* ---------- print ---------- */
+@page{ size: 8.5in 11in portrait; margin: .25in; }
+@media print{
+  html,body{ background:#fff; }
+  .no-print{ display:none !important; }
+  .sheet{ padding:0; display:block; break-after:page; page-break-after:always; }
+  .sheet:last-of-type{ break-after:auto; page-break-after:auto; }
+  .sign{ box-shadow:none; margin:0 auto; }
+}
+</style>
+</head>
+<body>
+
+<!-- ==========================================================
+     SPEC PANEL (screen only — does not print)
+     ========================================================== -->
+<div class="spec no-print">
+  <h1>STOP / DO NOT ENTER — restricted area signage</h1>
+  <p>Three sheets, each 7&nbsp;&times;&nbsp;10&nbsp;in (a standard OSHA sign size that prints on
+  letter stock). Built to <strong>ANSI Z535.2-2011</strong>, which OSHA accepts as an alternative
+  to the legacy design under <strong>29 CFR 1910.145(f)(1)(ii)</strong>. Print at 100% /
+  &ldquo;actual size&rdquo; &mdash; not <em>fit to page</em>, which shrinks the color areas and
+  letter heights below spec.</p>
+
+  <h2>Pick the right signal word</h2>
+  <ul>
+    <li><strong>Sheets 1 and 2 &mdash; DANGER.</strong> Only where entry exposes a person to an
+    <em>immediate</em> hazard that will cause death or serious injury: energized equipment, an
+    automated cell with no interlock, a robot envelope, a confined space, a live press brake.</li>
+    <li><strong>Sheet 3 &mdash; NOTICE.</strong> Where entry is restricted by rule but there is no
+    immediate injury hazard: secured stock, records or server room, gate-controlled yard.
+    Posting DANGER on a low-hazard door is the fastest way to train people to ignore red.</li>
+  </ul>
+
+  <h2>Colors (ANSI Z535.1)</h2>
+  <p><span class="sw" style="background:#C8102E"></span><code>#C8102E</code> safety red (PMS&nbsp;186C)
+  &nbsp; <span class="sw" style="background:#005EB8"></span><code>#005EB8</code> safety blue (PMS&nbsp;300C)
+  &nbsp; <span class="sw" style="background:#000"></span><code>#000000</code> black
+  &nbsp; <span class="sw" style="background:#fff"></span><code>#FFFFFF</code> white</p>
+
+  <h2>Legibility</h2>
+  <p>At 7&nbsp;&times;&nbsp;10&nbsp;in the signal word cap height is ~0.80&nbsp;in and
+  &ldquo;DO NOT ENTER&rdquo; ~0.54&nbsp;in, which reads at roughly <strong>25&ndash;30&nbsp;ft</strong>.
+  If it has to be read from farther, print larger &mdash; change <code>--w</code> / <code>--h</code>
+  and the <code>@page</code> size at the top of the stylesheet
+  (10&nbsp;&times;&nbsp;14 &rarr; ~40&nbsp;ft, 14&nbsp;&times;&nbsp;20 &rarr; ~55&nbsp;ft).</p>
+
+  <h2>Before posting</h2>
+  <ul>
+    <li>Fill in the hazard on the blank line. A sign that names the hazard gets obeyed; a generic
+    one gets papered over.</li>
+    <li>Mount centered 5&ndash;6&nbsp;ft above the walking surface, at the point where the decision
+    to enter is made &mdash; not past it.</li>
+    <li>Laminate or mount on rigid stock. 1910.145(d) requires signs to be durable and free of
+    sharp edges, burrs, and splinters. Paper taped to a door is not a sign.</li>
+    <li>If it is guarding a hazardous energy state, it supplements LOTO (1910.147) and machine
+    guarding (1910.212) &mdash; it never substitutes for either.</li>
+    <li>Log the location and add it to the compliance calendar for periodic condition checks.</li>
+  </ul>
+
+  <hr class="rule">
+  <p style="font-size:.85em;color:#666;margin:0">
+  Sheet 1 &mdash; DANGER + STOP octagon &nbsp;·&nbsp;
+  Sheet 2 &mdash; DANGER + no-pedestrian-entry symbol &nbsp;·&nbsp;
+  Sheet 3 &mdash; NOTICE, authorized personnel only</p>
+</div>
+
+<!-- ==========================================================
+     SHEET 1 — DANGER / STOP / DO NOT ENTER
+     ========================================================== -->
+<div class="sheet">
+<div class="sign">
+
+  <div class="signal danger">
+    <!-- ANSI safety alert symbol: white triangle, red exclamation -->
+    <svg class="alert-symbol" viewBox="0 0 100 88" aria-hidden="true">
+      <path d="M50 5 L96 83 L4 83 Z" fill="#fff" stroke="#fff"
+            stroke-width="5" stroke-linejoin="round"/>
+      <rect x="43.5" y="30" width="13" height="30" rx="2" fill="#C8102E"/>
+      <circle cx="50" cy="70" r="6.8" fill="#C8102E"/>
+    </svg>
+    <div class="word">DANGER</div>
+  </div>
+
+  <div class="message">
+
+    <!-- STOP octagon (inner ring points are the outer octagon scaled .875 about center) -->
+    <svg class="pictogram oct" viewBox="0 0 100 100" aria-label="Stop">
+      <polygon points="29.29,0 70.71,0 100,29.29 100,70.71 70.71,100 29.29,100 0,70.71 0,29.29"
+               fill="#C8102E"/>
+      <polygon points="31.88,6.25 68.12,6.25 93.75,31.88 93.75,68.12 68.12,93.75 31.88,93.75 6.25,68.12 6.25,31.88"
+               fill="none" stroke="#fff" stroke-width="4.5"/>
+      <text x="50" y="59.6" text-anchor="middle"
+            font-family="Arial, 'Liberation Sans', Helvetica, sans-serif"
+            font-size="27" font-weight="700" letter-spacing="0.5" fill="#fff">STOP</text>
+    </svg>
+
+    <div class="spacer"></div>
+    <div class="headline xl">DO NOT ENTER</div>
+    <div class="divider"></div>
+
+    <div class="wordmsg"><ul>
+      <li>RESTRICTED AREA &mdash;<span class="fill">&nbsp;</span>HAZARD</li>
+      <li>ENTRY WILL CAUSE SERIOUS INJURY OR DEATH</li>
+      <li>AUTHORIZED PERSONNEL ONLY.<br>
+          EQUIPMENT MUST BE LOCKED OUT AND VERIFIED<br>
+          AT ZERO ENERGY BEFORE ENTRY.</li>
+    </ul></div>
+    <div class="spacer"></div>
+
+    <div class="footer">
+      <div class="cell"><b>AREA</b><i></i></div>
+      <div class="cell"><b>CONTACT</b><i></i></div>
+      <div class="cell"><b>POSTED</b><i></i></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<!-- ==========================================================
+     SHEET 2 — DANGER / no pedestrian entry / STOP DO NOT ENTER
+     ========================================================== -->
+<div class="sheet">
+<div class="sign">
+
+  <div class="signal danger">
+    <svg class="alert-symbol" viewBox="0 0 100 88" aria-hidden="true">
+      <path d="M50 5 L96 83 L4 83 Z" fill="#fff" stroke="#fff"
+            stroke-width="5" stroke-linejoin="round"/>
+      <rect x="43.5" y="30" width="13" height="30" rx="2" fill="#C8102E"/>
+      <circle cx="50" cy="70" r="6.8" fill="#C8102E"/>
+    </svg>
+    <div class="word">DANGER</div>
+  </div>
+
+  <div class="message">
+
+    <!-- prohibition symbol: no pedestrian entry (ISO 3864 / ANSI Z535.3 form) -->
+    <svg class="pictogram ped" viewBox="0 0 100 100" aria-label="No pedestrian entry">
+      <g transform="translate(50,50) scale(.8) translate(-50,-50)">
+        <circle cx="51" cy="16" r="8.6" fill="#000"/>
+        <g stroke="#000" stroke-width="10.5" stroke-linecap="round"
+           stroke-linejoin="round" fill="none">
+          <path d="M50 31 L47 55"/>
+          <path d="M47 55 L59 72 L63 86"/>
+          <path d="M47 55 L35 70 L31 85"/>
+          <path d="M50 37 L63 46"/>
+          <path d="M50 37 L37 44"/>
+        </g>
+      </g>
+      <circle cx="50" cy="50" r="44" fill="none" stroke="#C8102E" stroke-width="9"/>
+      <line x1="22.1" y1="22.1" x2="77.9" y2="77.9" stroke="#C8102E" stroke-width="9"/>
+    </svg>
+
+    <div class="spacer"></div>
+    <div class="headline stop">STOP</div>
+    <div class="headline xl">DO NOT ENTER</div>
+    <div class="divider"></div>
+
+    <div class="wordmsg"><ul>
+      <li>RESTRICTED AREA &mdash;<span class="fill">&nbsp;</span>HAZARD</li>
+      <li>ENTRY WILL CAUSE SERIOUS INJURY OR DEATH</li>
+      <li>AUTHORIZED PERSONNEL ONLY. DO NOT CROSS THIS POINT<br>
+          WITHOUT PERMISSION FROM THE AREA SUPERVISOR.</li>
+    </ul></div>
+    <div class="spacer"></div>
+
+    <div class="footer">
+      <div class="cell"><b>AREA</b><i></i></div>
+      <div class="cell"><b>CONTACT</b><i></i></div>
+      <div class="cell"><b>POSTED</b><i></i></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<!-- ==========================================================
+     SHEET 3 — NOTICE / STOP DO NOT ENTER (no immediate hazard)
+     ========================================================== -->
+<div class="sheet">
+<div class="sign">
+
+  <!-- NOTICE carries no safety alert symbol: it is not a personal-injury signal word -->
+  <div class="signal notice">
+    <div class="word">NOTICE</div>
+  </div>
+
+  <div class="message">
+
+    <svg class="pictogram oct" viewBox="0 0 100 100" aria-label="Stop">
+      <polygon points="29.29,0 70.71,0 100,29.29 100,70.71 70.71,100 29.29,100 0,70.71 0,29.29"
+               fill="#C8102E"/>
+      <polygon points="31.88,6.25 68.12,6.25 93.75,31.88 93.75,68.12 68.12,93.75 31.88,93.75 6.25,68.12 6.25,31.88"
+               fill="none" stroke="#fff" stroke-width="4.5"/>
+      <text x="50" y="59.6" text-anchor="middle"
+            font-family="Arial, 'Liberation Sans', Helvetica, sans-serif"
+            font-size="27" font-weight="700" letter-spacing="0.5" fill="#fff">STOP</text>
+    </svg>
+
+    <div class="spacer"></div>
+    <div class="headline xl">DO NOT ENTER</div>
+    <div class="headline sub" style="margin-top:.12em">AUTHORIZED PERSONNEL ONLY</div>
+    <div class="divider"></div>
+
+    <div class="wordmsg"><ul>
+      <li>RESTRICTED AREA &mdash; ACCESS IS CONTROLLED</li>
+      <li>REPORT TO<span class="fill">&nbsp;</span>BEFORE ENTERING</li>
+      <li>VISITORS AND CONTRACTORS MUST SIGN IN<br>
+          AND BE ESCORTED WHILE IN THIS AREA.</li>
+    </ul></div>
+    <div class="spacer"></div>
+
+    <div class="footer">
+      <div class="cell"><b>AREA</b><i></i></div>
+      <div class="cell"><b>CONTACT</b><i></i></div>
+      <div class="cell"><b>POSTED</b><i></i></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+</body>
+</html>

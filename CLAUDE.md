@@ -319,6 +319,7 @@ infra/restore.sh          — D1 restore from a backup export
 infra/backups/auto/       — Weekly gzipped D1 exports (Monday 12:00 UTC cron)
 infra/deploy-notes.md     — Deploy patterns and gotchas
 tools/                    — Floor form (html + jsx) and 1-on-1 coach jsx
+tools/signage/            — Print-ready ANSI Z535.2 signs (html source + rendered pdf)
 kb/lessons.md             — Active failure log (the only .md file appended to)
 kb/archive/               — Pre-D1-migration snapshots (do not read)
 .claude/commands/         — Slash command definitions
