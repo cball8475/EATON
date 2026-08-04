@@ -4,57 +4,62 @@
   @page { size: letter portrait; margin: 0.5in; }
   * { box-sizing: border-box; }
   body {
-    margin: 0 auto; padding: 28px;
+    margin: 0 auto; padding: 26px;
     font-family: -apple-system, "Segoe UI", Arial, sans-serif;
     color: #000; background: #fff;
-    max-width: 8.5in; font-size: 11.5pt; line-height: 1.4;
+    max-width: 8.5in; font-size: 11pt; line-height: 1.38;
   }
 
-  .doc-title { font-size: 17pt; font-weight: 700; margin: 0; }
-  .doc-sub { font-size: 11pt; margin: 2px 0 12px; }
+  .banner { background: #000; color: #fff; padding: 10px 14px; }
+  .banner .type { font-size: 9pt; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; }
+  .banner .ttl { font-size: 16pt; font-weight: 700; margin-top: 2px; }
+  .banner .sub { font-size: 10pt; margin-top: 2px; }
 
-  table.hdr { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 18px; }
-  table.hdr td { border: 1px solid #000; padding: 4px 7px; }
-  table.hdr td.lbl { background: #EEE; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; width: 1.15in; }
+  table.hdr { width: 100%; border-collapse: collapse; font-size: 9pt; margin-bottom: 16px; }
+  table.hdr td { border: 1px solid #000; border-top: none; padding: 4px 7px; }
+  table.hdr td.lbl { background: #EEE; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; width: 1.1in; }
 
   h2 {
-    font-size: 11pt; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
-    margin: 20px 0 7px; padding-bottom: 3px; border-bottom: 1.5px solid #000;
+    font-size: 10.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+    margin: 18px 0 6px; padding-bottom: 3px; border-bottom: 1.5px solid #000;
   }
-  p { margin: 0 0 9px; }
-  ol, ul { margin: 0 0 9px; padding-left: 22px; }
-  li { margin-bottom: 6px; }
+  p { margin: 0 0 8px; }
+  ol, ul { margin: 0 0 8px; padding-left: 21px; }
+  li { margin-bottom: 5px; }
 
-  table.events { width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 10px; }
-  table.events th { background: #EEE; border: 1px solid #000; padding: 4px 7px; text-align: left; font-size: 9pt; text-transform: uppercase; letter-spacing: .04em; }
+  table.events { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 9px; }
+  table.events th { background: #EEE; border: 1px solid #000; padding: 4px 7px; text-align: left; font-size: 8.5pt; text-transform: uppercase; letter-spacing: .04em; }
   table.events td { border: 1px solid #000; padding: 5px 7px; vertical-align: top; }
-  table.events td.d { white-space: nowrap; width: 0.95in; }
-  table.events td.m { white-space: nowrap; width: 0.7in; }
+  table.events td.d { white-space: nowrap; width: 0.9in; }
+  table.events td.m { white-space: nowrap; width: 0.65in; }
 
-  .keypoint { border: 2px solid #000; padding: 9px 12px; margin: 10px 0; }
-  .keypoint p:last-child { margin-bottom: 0; }
+  .box { border: 2px solid #000; padding: 9px 12px; margin: 9px 0; }
+  .box p:last-child { margin-bottom: 0; }
 
   .photo {
     border: 2px dashed #777; background: #F7F7F7;
-    height: 2.6in; margin: 10px 0 4px;
+    height: 2.5in; margin: 9px 0 4px;
     display: flex; align-items: center; justify-content: center; text-align: center;
   }
   .photo span { font-size: 10pt; color: #666; }
   .photo span em { display: block; font-style: normal; font-size: 9pt; color: #888; margin-top: 5px; }
-  .caption { font-size: 9pt; color: #444; margin: 0 0 9px; }
+  .caption { font-size: 9pt; color: #333; margin: 0 0 8px; }
 
-  .footer-note { margin-top: 22px; padding-top: 8px; border-top: 1.5px solid #000; font-size: 9.5pt; }
+  .footer-note { margin-top: 20px; padding-top: 8px; border-top: 1.5px solid #000; font-size: 9.5pt; }
 
   @media print {
     body { padding: 0; }
-    .photo { height: 2.2in; }
+    .photo { height: 2.1in; }
     h2 { page-break-after: avoid; }
-    table.events { page-break-inside: avoid; }
+    table.events, .box { page-break-inside: avoid; }
   }
 </style>
 
-<p class="doc-title">Lessons Learned — Press Brake Hand Placement</p>
-<p class="doc-sub">Hands out of the pinch between the ram and the part</p>
+<div class="banner">
+  <div class="type">EHS Lessons Learned</div>
+  <div class="ttl">Press Brake Hand Placement</div>
+  <div class="sub">Hands pinched between the ram and the part at the front face of the die</div>
+</div>
 
 <table class="hdr">
   <tr>
@@ -63,7 +68,7 @@
   </tr>
   <tr>
     <td class="lbl">Site</td><td>Sumter, SC</td>
-    <td class="lbl">Prepared By</td><td>Charlie Ball, EHS</td>
+    <td class="lbl">Issued By</td><td>Charlie Ball, EHS</td>
   </tr>
   <tr>
     <td class="lbl">Area</td><td>Steel Fab and Copper Fab</td>
@@ -93,34 +98,42 @@
   </tr>
 </table>
 
-<h2>Why It Happened</h2>
-<p>In all three events the hand was pinched between the ram and the part, at the front face of the die. That is not the mouth of the press.</p>
+<p>In all three events the hand was pinched between the ram and the part, at the front face of the die. That is not the mouth of the press. The machines were operating as designed.</p>
 
-<div class="keypoint">
-  <p>The laser scanner guards the mouth, and it only covers the middle of the gap. It does not cover the front of the die. The front of the die is where your hand is when you hold a part, position a part, or check an angle.</p>
-  <p>All three injuries happened in the area the guarding does not reach.</p>
-</div>
-
-<p>The machines were operating as designed in all three events. The common factor was a hand on the part. Hand tools were installed at the brakes as a corrective action after the 2023 and 2025 events, and they were available at PB19 on 6/26/2026.</p>
-
-<h2>Lessons Learned</h2>
+<h2>Root Causes</h2>
 <ol>
-  <li><strong>The guarded area and the injury area are not the same place.</strong> A working laser scanner does not make it safe to hold a part by hand.</li>
-  <li><strong>Setup and part removal are when this happens.</strong> Two of the three injuries occurred outside a normal production cycle, when the operator was checking or retrieving instead of running.</li>
-  <li><strong>A scrap piece in your hand is still your hand.</strong> Holding scrap to check an angle puts your fingers in the same pinch point.</li>
-  <li><strong>Tools at the machine are not the same as tools in use.</strong> The hand tools were present at PB19 and the injury still occurred.</li>
+  <li><strong>The guarding does not cover the point of injury.</strong> The laser scanner covers the mouth of the press, and only the middle of the gap. It does not cover the front face of the die, which is where the hand is when an operator holds a part, positions a part, or checks an angle.</li>
+  <li><strong>Parts were being held by hand.</strong> The common factor in all three events was a hand on the part inside the pinch point.</li>
+  <li><strong>Setup and part removal were not treated as hazardous.</strong> Two of the three injuries occurred outside a normal production cycle, while checking or retrieving.</li>
+  <li><strong>Hand tools were available and not in use.</strong> Tools were installed at the brakes as a corrective action after the 2023 and 2025 events and were present at PB19 on 6/26/2026.</li>
+  <li><strong>Use of the approved methods was never verified.</strong> Prior corrective actions were closed when the tools were installed, not on evidence that operators were using them.</li>
 </ol>
 
-<h2>Required Practice</h2>
-<p>No hands within 3 inches of the die. This applies during setup, during the bend, and when removing the part.</p>
-<p>There are four ways to run a part without a hand in the pinch point:</p>
+<h2>Corrective Actions</h2>
 <ol>
-  <li><strong>Magnet.</strong> Set the part on the magnet mounted on the back of the bottom die instead of holding it. Magnets do not hold copper, so this option is not available in the copper shop.</li>
+  <li>Hand tools (magnet, orange push bar, tongs) installed and maintained at every press brake.</li>
+  <li>Press brake training program and method sheets updated, with annual review and operator sign-off.</li>
+  <li>This lessons learned issued to all press brake operators and support staff on all shifts. Signed roster returned to EHS.</li>
+  <li>Random verification audits by EHS and area supervisors, beginning on issue of this document.</li>
+</ol>
+
+<h2>Required Practice — All Press Brake Operators</h2>
+<p>No hands within 3 inches of the die. This applies during setup, during the bend, and when removing the part.</p>
+<p>There are four approved methods for running a part without a hand in the pinch point:</p>
+<ol>
+  <li><strong>Magnet.</strong> Set the part on the magnet mounted on the back of the bottom die instead of holding it. Magnets do not hold copper, so this method is not available in the copper shop.</li>
   <li><strong>Orange push bar.</strong> Feed, seat, and position the part with the bar.</li>
-  <li><strong>Tongs.</strong> Grip and hold the part. Best option for W-channel and U-channel parts.</li>
+  <li><strong>Tongs.</strong> Grip and hold the part. Best method for W-channel and U-channel parts.</li>
   <li><strong>Bring the ram down onto the part first.</strong> Lower the ram until it holds the part against the die, take your hands off, then complete the bend. The press holds the part instead of your hand.</li>
 </ol>
 <p>If a part cannot be run using one of these four methods, stop. Back the ram off, re-fixture the part, or get your supervisor before you run it.</p>
+
+<h2>Verification and Accountability</h2>
+<div class="box">
+  <p>EHS and area supervisors will conduct <strong>random audits of press brake operations on all shifts</strong> to verify that one of the four approved methods is being used.</p>
+  <p>Running a part by hand, without one of the four approved methods, is a <strong>failure to follow procedure</strong>. It will be addressed on the spot, and consequences range from coaching and retraining up to <strong>being sent home for the day</strong>.</p>
+  <p>If a part or a situation makes the approved methods impractical, that is a problem to raise with your supervisor or EHS before you run it. It is not a reason to run it by hand.</p>
+</div>
 
 <h2>Approved Hand Tools</h2>
 <div class="photo">
@@ -138,5 +151,5 @@
 </ul>
 
 <div class="footer-note">
-  Review this lessons learned with your crew and return the signed roster to EHS. Questions on a part that does not fit the four methods: contact Charlie Ball, EHS, before it runs.
+  Review this lessons learned with your crew and return the signed roster to EHS. Questions on a part that does not fit the four approved methods: contact Charlie Ball, EHS, before it runs.
 </div>
