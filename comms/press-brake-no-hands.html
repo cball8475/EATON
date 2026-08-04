@@ -1,155 +1,235 @@
 <meta charset="utf-8">
-<title>Lessons Learned — Press Brake Hand Placement</title>
+<title>EHS Lessons Learned — Press Brake Hand Placement</title>
 <style>
-  @page { size: letter portrait; margin: 0.5in; }
+  @page { size: letter landscape; margin: 0.3in; }
   * { box-sizing: border-box; }
   body {
-    margin: 0 auto; padding: 26px;
-    font-family: -apple-system, "Segoe UI", Arial, sans-serif;
-    color: #000; background: #fff;
-    max-width: 8.5in; font-size: 11pt; line-height: 1.38;
+    margin: 0; padding: 14px;
+    font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+    background: #6B6B6B; color: #000;
   }
 
-  .banner { background: #000; color: #fff; padding: 10px 14px; }
-  .banner .type { font-size: 9pt; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; }
-  .banner .ttl { font-size: 16pt; font-weight: 700; margin-top: 2px; }
-  .banner .sub { font-size: 10pt; margin-top: 2px; }
+  .slide {
+    background: #fff; width: 10.4in; height: 5.85in;
+    margin: 0 auto 18px; padding: 0 0 34px; position: relative;
+    display: flex; flex-direction: column;
+  }
 
-  table.hdr { width: 100%; border-collapse: collapse; font-size: 9pt; margin-bottom: 16px; }
-  table.hdr td { border: 1px solid #000; border-top: none; padding: 4px 7px; }
-  table.hdr td.lbl { background: #EEE; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; width: 1.1in; }
+  .banner { background: #4472C4; color: #fff; padding: 8px 18px 10px; }
+  .banner h1 { font-size: 15pt; font-weight: 700; font-style: italic; margin: 0; }
+  .banner .l2 { font-size: 11pt; font-weight: 700; font-style: italic; margin-top: 2px; }
+  .banner .l3 { font-size: 9.5pt; font-weight: 700; font-style: italic; margin-top: 2px; }
+  .banner .l3 span { display: inline-block; margin-right: 34px; }
+
+  .body { display: flex; gap: 16px; padding: 10px 18px 4px; flex: 1; }
+  .col-l { width: 35%; }
+  .col-r { width: 65%; }
 
   h2 {
-    font-size: 10.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
-    margin: 18px 0 6px; padding-bottom: 3px; border-bottom: 1.5px solid #000;
+    font-size: 8.5pt; font-weight: 700; font-style: italic; text-decoration: underline;
+    margin: 0 0 2px; color: #000;
   }
-  p { margin: 0 0 8px; }
-  ol, ul { margin: 0 0 8px; padding-left: 21px; }
-  li { margin-bottom: 5px; }
+  section { margin-bottom: 5px; }
+  p { margin: 0 0 4px; font-size: 7.2pt; line-height: 1.25; }
+  ol, ul { margin: 0; padding-left: 15px; font-size: 7.2pt; line-height: 1.24; }
+  li { margin-bottom: 2px; }
 
-  table.events { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 9px; }
-  table.events th { background: #EEE; border: 1px solid #000; padding: 4px 7px; text-align: left; font-size: 8.5pt; text-transform: uppercase; letter-spacing: .04em; }
-  table.events td { border: 1px solid #000; padding: 5px 7px; vertical-align: top; }
-  table.events td.d { white-space: nowrap; width: 0.9in; }
-  table.events td.m { white-space: nowrap; width: 0.65in; }
-
-  .box { border: 2px solid #000; padding: 9px 12px; margin: 9px 0; }
-  .box p:last-child { margin-bottom: 0; }
-
+  .photos { display: flex; gap: 8px; margin-bottom: 10px; }
   .photo {
-    border: 2px dashed #777; background: #F7F7F7;
-    height: 2.5in; margin: 9px 0 4px;
-    display: flex; align-items: center; justify-content: center; text-align: center;
+    flex: 1; border: 1.5px dashed #999; background: #F4F4F4;
+    height: 1.6in; display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 8px;
   }
-  .photo span { font-size: 10pt; color: #666; }
-  .photo span em { display: block; font-style: normal; font-size: 9pt; color: #888; margin-top: 5px; }
-  .caption { font-size: 9pt; color: #333; margin: 0 0 8px; }
+  .photo span { font-size: 7.5pt; color: #777; line-height: 1.3; }
 
-  .footer-note { margin-top: 20px; padding-top: 8px; border-top: 1.5px solid #000; font-size: 9.5pt; }
+  .askbox { border: 1px solid #A6A6A6; padding: 9px 12px; }
+  .askbox h2 { margin-bottom: 7px; }
+
+  table.ev { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin: 5px 0 6px; }
+  table.ev th { background: #E8E8E8; border: 1px solid #999; padding: 3px 5px; text-align: left; font-size: 8pt; }
+  table.ev td { border: 1px solid #999; padding: 3px 5px; vertical-align: top; line-height: 1.28; }
+  table.ev td.d, table.ev td.m { white-space: nowrap; }
+
+  footer {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 30px;
+    display: flex; align-items: center; padding: 0 20px;
+  }
+  .logo { font-size: 13pt; font-weight: 700; color: #0072CE; letter-spacing: .05em; }
+  .copy { flex: 1; text-align: center; font-size: 8pt; color: #444; }
+  .tagbar { background: #1F3864; color: #fff; font-size: 8.5pt; font-weight: 700; padding: 4px 14px; }
+
+  /* ---- slide 2 ---- */
+  .rule-line {
+    border: 2px solid #000; padding: 8px 13px; margin-bottom: 10px;
+  }
+  .rule-line .big { font-size: 13pt; font-weight: 700; }
+  .rule-line .sm { font-size: 10pt; margin-top: 3px; }
+
+  .methods { display: flex; gap: 9px; margin-bottom: 8px; }
+  .method { flex: 1; border: 1px solid #A6A6A6; border-top: 4px solid #4472C4; padding: 8px 10px; }
+  .method .n { font-size: 14pt; font-weight: 700; color: #4472C4; line-height: 1; }
+  .method .nm { font-size: 10.5pt; font-weight: 700; margin: 3px 0 4px; }
+  .method .tx { font-size: 8pt; line-height: 1.28; }
+  .method .warn { font-size: 8pt; font-weight: 700; margin-top: 4px; }
+
+  .accbox { border: 2px solid #000; padding: 8px 13px; }
+  .accbox h2 { margin-bottom: 6px; }
+  .accbox p { font-size: 8.2pt; margin-bottom: 4px; line-height: 1.28; }
+  .accbox p:last-child { margin-bottom: 0; }
+
+  .wide-photo {
+    border: 1.5px dashed #999; background: #F4F4F4; height: 0.95in;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    margin-bottom: 8px;
+  }
+  .wide-photo span { font-size: 8.5pt; color: #777; }
 
   @media print {
-    body { padding: 0; }
-    .photo { height: 2.1in; }
-    h2 { page-break-after: avoid; }
-    table.events, .box { page-break-inside: avoid; }
+    body { background: #fff; padding: 0; }
+    .slide { margin: 0; box-shadow: none; page-break-after: always; }
+    .slide:last-child { page-break-after: auto; }
   }
 </style>
 
-<div class="banner">
-  <div class="type">EHS Lessons Learned</div>
-  <div class="ttl">Press Brake Hand Placement</div>
-  <div class="sub">Hands pinched between the ram and the part at the front face of the die</div>
+<!-- ============ SLIDE 1 ============ -->
+<div class="slide">
+  <div class="banner">
+    <h1>Press Brake Hand Placement — Three Injuries, One Pinch Point</h1>
+    <div class="l2">[Date] — Eaton Sumter, SC</div>
+    <div class="l3">
+      <span>Plant Manager: Stephen Krajcarski (Interim)</span>
+      <span>EHS Site Contact: Charlie Ball, Sr. EHS Engineer</span>
+    </div>
+  </div>
+
+  <div class="body">
+    <div class="col-l">
+      <div class="photos">
+        <div class="photo"><span>Photo — pinch point between the ram and the part at the front face of the die</span></div>
+        <div class="photo"><span>Photo — the three approved hand tools (magnet, orange push bar, tongs)</span></div>
+      </div>
+
+      <div class="askbox">
+        <h2>How does this incident apply to you?</h2>
+        <ol>
+          <li>Are there parts in your area still being held by hand because no tool fits them — and has anyone been told?</li>
+          <li>Do you have a safeguard that covers only part of the hazard, so operators assume they are protected where they are not?</li>
+          <li>When a corrective action is installed at your workstation, how do you know it is actually being used?</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="col-r">
+      <section>
+        <h2>Incident Description:</h2>
+        <p>Three operators have been injured on Sumter press brakes since 2023, on three different machines and three different shifts.</p>
+        <p><strong>8/29/2023, PB14</strong> — operator reached in to remove a finished part; his foot contacted the pedal and the upper die traveled down. Right ring finger fracture. Recordable, restricted work.<br>
+        <strong>2/6/2025, PB27</strong> — new operator checked a bend angle during setup using a scrap piece; the scrap bent and pulled his hand into the die. Partial amputation, right middle finger. Recordable, restricted work.<br>
+        <strong>6/26/2026, PB19</strong> — operator's thumb caught in the same pinch. Treated on site, first aid.</p>
+        <p>In every event the hand was pinched between the ram and the part at the <strong>front face of the die</strong>, not at the mouth of the press. The machines were operating as designed.</p>
+      </section>
+
+      <section>
+        <h2>Investigation Findings:</h2>
+        <ol>
+          <li>The laser scanner guards the mouth of the press and covers only the middle of the gap. It does not reach the ram-to-part pinch at the front of the die, which is where all three injuries occurred.</li>
+          <li>Two of the three injuries occurred during setup or part removal, outside a normal production cycle.</li>
+          <li>Approved hand tools were installed at the brakes as a corrective action after the 2023 and 2025 events and were present at PB19 on 6/26/2026. They were not in use.</li>
+          <li>Magnets do not hold copper, which removes one of the approved methods in the copper shop.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Root Causes and Management System Gaps:</h2>
+        <ol>
+          <li>Use of the approved methods was never verified. Corrective actions from 2023 and 2025 were closed when tools were installed, not on evidence that operators were using them.</li>
+          <li>The 2025 8D was never formally closed — D5 (permanent corrective actions) and D6 (validation) left blank, no owner assigned per action.</li>
+          <li>Engineered guarding does not cover the ram-to-part pinch, so the process depends entirely on operator method — and setup and part removal are not treated as point-of-operation work in training or on method sheets.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Interim Containment Actions:</h2>
+        <ol>
+          <li>This lessons learned reviewed with all press brake operators, setup personnel, team leads, and supervisors on all shifts; signed roster returned to EHS.</li>
+          <li>Approved hand tools verified present at every press brake prior to the review.</li>
+          <li>Random verification audits by EHS and area supervisors begin on issue of this document.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Preventive &amp; Corrective Actions:</h2>
+        <ol>
+          <li>No hands within 3 in. of the die, using one of four approved methods (next page) — added to press brake method sheets and operator training.</li>
+          <li>Random audits of press brake operations on all shifts by EHS and area supervisors; findings logged and tracked to closure in Benchmark.</li>
+          <li>Close the 2025 8D — assign an owner to each D5 permanent corrective action and complete D6 validation.</li>
+          <li>Continue routing high-risk parts to safe equipment; finalize the high-risk-part list and the routing target.</li>
+        </ol>
+      </section>
+    </div>
+  </div>
+
+  <footer>
+    <div class="logo">E&middot;A&middot;T&middot;N</div>
+    <div class="copy">&copy; 2026 Eaton. All Rights Reserved.</div>
+    <div class="tagbar">Environment, Health &amp; Safety Lessons Learned</div>
+  </footer>
 </div>
 
-<table class="hdr">
-  <tr>
-    <td class="lbl">LL Number</td><td>&nbsp;</td>
-    <td class="lbl">Date Issued</td><td>&nbsp;</td>
-  </tr>
-  <tr>
-    <td class="lbl">Site</td><td>Sumter, SC</td>
-    <td class="lbl">Issued By</td><td>Charlie Ball, EHS</td>
-  </tr>
-  <tr>
-    <td class="lbl">Area</td><td>Steel Fab and Copper Fab</td>
-    <td class="lbl">Equipment</td><td>All press brakes</td>
-  </tr>
-  <tr>
-    <td class="lbl">Audience</td><td colspan="3">All press brake operators, setup personnel, team leads, and supervisors — all shifts</td>
-  </tr>
-</table>
+<!-- ============ SLIDE 2 ============ -->
+<div class="slide">
+  <div class="banner">
+    <h1>Required Practice — No Hands Within 3 Inches of the Die</h1>
+    <div class="l2">[Date] — Eaton Sumter, SC</div>
+    <div class="l3">
+      <span>All Press Brake Operators and Setup Personnel — All Shifts</span>
+      <span>EHS Site Contact: Charlie Ball, Sr. EHS Engineer</span>
+    </div>
+  </div>
 
-<h2>What Happened</h2>
-<p>Three operators have been injured on Sumter press brakes since 2023. Three different machines, three different shifts, three different parts.</p>
+  <div class="body" style="flex-direction:column; gap:0;">
+    <div class="rule-line">
+      <div class="big">Keep your hands more than 3 inches from the die. Setup, bend, and part removal.</div>
+      <div class="sm">There are four approved methods for running a part without a hand in the pinch point. Use one of them on every part.</div>
+    </div>
 
-<table class="events">
-  <tr><th>Date</th><th>Machine</th><th>Event</th></tr>
-  <tr>
-    <td class="d">8/29/2023</td><td class="m">PB14</td>
-    <td>Operator finished a bend and reached in to remove the part. His foot contacted the pedal, the upper die traveled down, and his hand was pinched between the part and the front of the die. Right ring finger fracture. Recordable, restricted work.</td>
-  </tr>
-  <tr>
-    <td class="d">2/6/2025</td><td class="m">PB27</td>
-    <td>New operator was checking a bend angle during setup using a scrap piece of metal. The scrap bent and pulled his hand into the die. Partial amputation, right middle finger. Recordable, restricted work.</td>
-  </tr>
-  <tr>
-    <td class="d">6/26/2026</td><td class="m">PB19</td>
-    <td>Operator's thumb was caught in the same pinch. Treated on site, first aid.</td>
-  </tr>
-</table>
+    <div class="methods">
+      <div class="method">
+        <div class="n">1</div>
+        <div class="nm">Magnet</div>
+        <div class="tx">Set the part on the magnet mounted on the back of the bottom die instead of holding it.</div>
+        <div class="warn">Does not hold copper.</div>
+      </div>
+      <div class="method">
+        <div class="n">2</div>
+        <div class="nm">Orange Push Bar</div>
+        <div class="tx">Feed, seat, and position the part with the bar rather than your fingers.</div>
+      </div>
+      <div class="method">
+        <div class="n">3</div>
+        <div class="nm">Tongs</div>
+        <div class="tx">Grip and hold the part. Best method for W-channel and U-channel parts.</div>
+      </div>
+      <div class="method">
+        <div class="n">4</div>
+        <div class="nm">Ram Down First</div>
+        <div class="tx">Lower the ram until it holds the part against the die, take your hands off, then complete the bend. The press holds the part instead of your hand.</div>
+      </div>
+    </div>
 
-<p>In all three events the hand was pinched between the ram and the part, at the front face of the die. That is not the mouth of the press. The machines were operating as designed.</p>
+    <div class="wide-photo"><span>Photo — the three approved hand tools, left to right: magnet, orange push bar, tongs</span></div>
 
-<h2>Root Causes</h2>
-<ol>
-  <li><strong>The guarding does not cover the point of injury.</strong> The laser scanner covers the mouth of the press, and only the middle of the gap. It does not cover the front face of the die, which is where the hand is when an operator holds a part, positions a part, or checks an angle.</li>
-  <li><strong>Parts were being held by hand.</strong> The common factor in all three events was a hand on the part inside the pinch point.</li>
-  <li><strong>Setup and part removal were not treated as hazardous.</strong> Two of the three injuries occurred outside a normal production cycle, while checking or retrieving.</li>
-  <li><strong>Hand tools were available and not in use.</strong> Tools were installed at the brakes as a corrective action after the 2023 and 2025 events and were present at PB19 on 6/26/2026.</li>
-  <li><strong>Use of the approved methods was never verified.</strong> Prior corrective actions were closed when the tools were installed, not on evidence that operators were using them.</li>
-</ol>
+    <div class="accbox">
+      <h2>Verification and Accountability:</h2>
+      <p>EHS and area supervisors will conduct <strong>random audits of press brake operations on all shifts</strong> to verify that one of the four approved methods is being used.</p>
+      <p>Running a part by hand, without one of the four approved methods, is a <strong>failure to follow procedure</strong>. It will be addressed on the spot, and consequences range from coaching and retraining up to <strong>being sent home for the day</strong>.</p>
+      <p>If a part cannot be run using one of these four methods, stop. Back the ram off, re-fixture the part, or get your supervisor. A part that does not fit the approved methods is a problem to raise before it runs — it is not a reason to run it by hand.</p>
+    </div>
+  </div>
 
-<h2>Corrective Actions</h2>
-<ol>
-  <li>Hand tools (magnet, orange push bar, tongs) installed and maintained at every press brake.</li>
-  <li>Press brake training program and method sheets updated, with annual review and operator sign-off.</li>
-  <li>This lessons learned issued to all press brake operators and support staff on all shifts. Signed roster returned to EHS.</li>
-  <li>Random verification audits by EHS and area supervisors, beginning on issue of this document.</li>
-</ol>
-
-<h2>Required Practice — All Press Brake Operators</h2>
-<p>No hands within 3 inches of the die. This applies during setup, during the bend, and when removing the part.</p>
-<p>There are four approved methods for running a part without a hand in the pinch point:</p>
-<ol>
-  <li><strong>Magnet.</strong> Set the part on the magnet mounted on the back of the bottom die instead of holding it. Magnets do not hold copper, so this method is not available in the copper shop.</li>
-  <li><strong>Orange push bar.</strong> Feed, seat, and position the part with the bar.</li>
-  <li><strong>Tongs.</strong> Grip and hold the part. Best method for W-channel and U-channel parts.</li>
-  <li><strong>Bring the ram down onto the part first.</strong> Lower the ram until it holds the part against the die, take your hands off, then complete the bend. The press holds the part instead of your hand.</li>
-</ol>
-<p>If a part cannot be run using one of these four methods, stop. Back the ram off, re-fixture the part, or get your supervisor before you run it.</p>
-
-<h2>Verification and Accountability</h2>
-<div class="box">
-  <p>EHS and area supervisors will conduct <strong>random audits of press brake operations on all shifts</strong> to verify that one of the four approved methods is being used.</p>
-  <p>Running a part by hand, without one of the four approved methods, is a <strong>failure to follow procedure</strong>. It will be addressed on the spot, and consequences range from coaching and retraining up to <strong>being sent home for the day</strong>.</p>
-  <p>If a part or a situation makes the approved methods impractical, that is a problem to raise with your supervisor or EHS before you run it. It is not a reason to run it by hand.</p>
-</div>
-
-<h2>Approved Hand Tools</h2>
-<div class="photo">
-  <span>Photo of the three approved hand tools
-    <em>Magnet, orange push bar, tongs</em>
-  </span>
-</div>
-<p class="caption">These tools are at every press brake. If any are missing from your machine, tell your supervisor before you run.</p>
-
-<h2>Supervisor Discussion Points</h2>
-<ul>
-  <li>Which parts in your area are still being held by hand? Name them.</li>
-  <li>Are the magnet, push bar, and tongs present at every brake on your shift right now?</li>
-  <li>What does your crew do today when a part is too small or the wrong shape for all four methods?</li>
-</ul>
-
-<div class="footer-note">
-  Review this lessons learned with your crew and return the signed roster to EHS. Questions on a part that does not fit the four approved methods: contact Charlie Ball, EHS, before it runs.
+  <footer>
+    <div class="logo">E&middot;A&middot;T&middot;N</div>
+    <div class="copy">&copy; 2026 Eaton. All Rights Reserved.</div>
+    <div class="tagbar">Environment, Health &amp; Safety Lessons Learned</div>
+  </footer>
 </div>
