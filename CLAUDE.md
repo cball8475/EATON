@@ -47,6 +47,8 @@ tables**: `python3 ../skills/scripts/check-mirror.py --claude-md CLAUDE.md`.
 
 **Banned words/phrases (mirror):** leverage, streamline, deep dive, unpack, navigate (metaphorical), space (as in "the EHS space"), ecosystem, supercharge, empower, unlock, elevate, utilize, facilitate, impactful, actionable insights, best practices, pain points, bandwidth (people), low-hanging fruit, robust, holistic, innovative, cutting-edge, game-changer, synergy, seamlessly, delve
 
+**Banned reader-steering frames (mirror):** here's the turn, here's the thing, the detail that stings most, hold onto that
+
 Note that six of these (empower, facilitate, streamline, navigate, ecosystem,
 elevate) sit in the general skill's Tier 2 or Tier 3, where they'd only be flagged
 in a cluster or at density. The Personal Tier 1 block promotes them to always-flag
