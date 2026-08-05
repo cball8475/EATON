@@ -39,6 +39,12 @@ The list below is an exact mirror, kept inline because this file is the only thi
 that auto-loads and the `skills` repo is not attached to every session. **If the two
 ever disagree, the skill wins and this mirror is the thing that's stale.**
 
+Enforced by `scripts/check-mirror.py` in the `skills` repo, which fails if a mirrored
+word is missing from the skill's tables or a Personal Tier 1 entry is missing from the
+mirror. It rides `scripts/check-invariants.sh`. Both repos have to be present, so it
+cannot run in either repo's CI — **run it in any session that edits this list or those
+tables**: `python3 ../skills/scripts/check-mirror.py --claude-md CLAUDE.md`.
+
 **Banned words/phrases (mirror):** leverage, streamline, deep dive, unpack, navigate (metaphorical), space (as in "the EHS space"), ecosystem, supercharge, empower, unlock, elevate, utilize, facilitate, impactful, actionable insights, best practices, pain points, bandwidth (people), low-hanging fruit, robust, holistic, innovative, cutting-edge, game-changer, synergy, seamlessly, delve
 
 Note that six of these (empower, facilitate, streamline, navigate, ecosystem,
