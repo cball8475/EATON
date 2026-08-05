@@ -28,7 +28,31 @@ Past the onboarding window as of August 2026. Don't frame work as a 30/60/90-day
 
 **Style:** Direct, terse, correction-oriented. No corporate jargon.
 
-**Banned words/phrases:** leverage, streamline, deep dive, unpack, navigate (metaphorical), space (as in "the EHS space"), ecosystem, supercharge, empower, unlock, elevate, utilize, facilitate, impactful, actionable insights, best practices, pain points, bandwidth (people), low-hanging fruit, robust, holistic, innovative, cutting-edge, game-changer, synergy, seamlessly, delve
+**Canonical word list:** the tiered tables in the `avoid-ai-writing` skill
+(`skills/skills/productivity/avoid-ai-writing/SKILL.md`), specifically its **Tier 1**
+and **Personal Tier 1** blocks. That skill is the single source; read it before
+writing anything longer than a chat reply, and change it — not this file — when a
+word needs adding or dropping. `check_voice.py` in the `before-human-error` repo
+scans against those same tables, so the list has exactly one home.
+
+The list below is an exact mirror, kept inline because this file is the only thing
+that auto-loads and the `skills` repo is not attached to every session. **If the two
+ever disagree, the skill wins and this mirror is the thing that's stale.**
+
+Enforced by `scripts/check-mirror.py` in the `skills` repo, which fails if a mirrored
+word is missing from the skill's tables or a Personal Tier 1 entry is missing from the
+mirror. It rides `scripts/check-invariants.sh`. Both repos have to be present, so it
+cannot run in either repo's CI — **run it in any session that edits this list or those
+tables**: `python3 ../skills/scripts/check-mirror.py --claude-md CLAUDE.md`.
+
+**Banned words/phrases (mirror):** leverage, streamline, deep dive, unpack, navigate (metaphorical), space (as in "the EHS space"), ecosystem, supercharge, empower, unlock, elevate, utilize, facilitate, impactful, actionable insights, best practices, pain points, bandwidth (people), low-hanging fruit, robust, holistic, innovative, cutting-edge, game-changer, synergy, seamlessly, delve
+
+**Banned reader-steering frames (mirror):** here's the turn, here's the thing, the detail that stings most, hold onto that
+
+Note that six of these (empower, facilitate, streamline, navigate, ecosystem,
+elevate) sit in the general skill's Tier 2 or Tier 3, where they'd only be flagged
+in a cluster or at density. The Personal Tier 1 block promotes them to always-flag
+for Charlie. That gap is why the two lists have to stay tied together.
 
 **Banned openers:** "Certainly!", "Absolutely!", "Great question!", "Happy to help!", "I'd be delighted to..."
 
@@ -238,7 +262,7 @@ Where data lives. When facts disagree, the authoritative source wins.
 
 - **`/scoreboard`** — sole authority for every safety metric. See the rule near the top of this file.
 - **D1** (via Worker API) — authoritative for everything else dynamic: tasks, people, knowledge, intel, leadership_moves, weekly_reflections. Always pull fresh; don't cache those facts here.
-- **CLAUDE.md** (this file) — authoritative for stable rules: communication style, infra IDs, working-relationship notes, standing priorities, targets. Auto-loaded every session — and the *only* thing auto-loaded, which is why the Session Start Protocol near the top of this file exists. **The filename has to stay capitalized** — Claude Code only auto-loads `CLAUDE.md`, and on Linux and cloud sessions a lowercase `claude.md` is silently never read.
+- **CLAUDE.md** (this file) — authoritative for stable rules: communication style, infra IDs, working-relationship notes, standing priorities, targets. One carve-out: the banned-word list is **not** authoritative here. The `avoid-ai-writing` skill's Tier 1 and Personal Tier 1 tables own it, and the copy in Communication Rules is a labelled mirror. Auto-loaded every session — and the *only* thing auto-loaded, which is why the Session Start Protocol near the top of this file exists. **The filename has to stay capitalized** — Claude Code only auto-loads `CLAUDE.md`, and on Linux and cloud sessions a lowercase `claude.md` is silently never read.
 - **ref/eaton-stable.md** — facility procedures (PPE, MOC, fab flows, EHS systems, full shift-supervisor roster, environmental). Read on demand for operational questions.
 - **ref/debrief-protocol.md** — user-facing copy-paste prompt. Charlie's tool, not Claude's reference.
 - **kb/lessons.md** — active failure log. The only `.md` file ever appended to. Force-read at `/morning` if updated since the last session.
