@@ -342,7 +342,7 @@ infra/migrations/         — Dated migration SQL (run ALTER TABLE individually)
 infra/restore.sh          — D1 restore from a backup export
 infra/backups/auto/       — Weekly gzipped D1 exports (Monday 12:00 UTC cron)
 infra/deploy-notes.md     — Deploy patterns and gotchas
-tools/                    — Floor form (html + jsx) and 1-on-1 coach jsx
+tools/                    — Floor form (html + jsx), 1-on-1 coach jsx, email signature (open in a browser, copy, paste into Outlook)
 kb/lessons.md             — Active failure log (the only .md file appended to)
 kb/archive/               — Pre-D1-migration snapshots (do not read)
 .claude/commands/         — Slash command definitions
